@@ -55,6 +55,7 @@ RUN echo "---- INSTALL BUILD-DEPENDENCIES ----" && \
     pkg-config \
     texinfo \
     yasm \
+    nasm \
     libfdk-aac-dev \
     zlib1g-dev' && \
     set -x && \
@@ -109,52 +110,43 @@ FROM ffmpeg AS m4b-tool
 #ENV M4BTOOL_TMP_DIR /tmp/m4b-tool/
 LABEL Description="Container to run m4b-tool as a deamon."
 
-RUN echo "---- INSTALL M4B-TOOL DEPENDENCIES ----" && \
-    apt-get update && apt-get install -y \
+RUN echo "---- INSTALL PHP 8.2+ FROM PPA ----" && \
+    apt-get update && \
+    apt-get install -y software-properties-common gnupg ca-certificates apt-transport-https && \
+    LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php && \
+    apt-get update && \
+    echo "---- INSTALL M4B-TOOL DEPENDENCIES ----" && \
+    apt-get install -y \
     fdkaac \
-    php-cli \
-    php-intl \
-    php-json \
-    php-mbstring \
-    php-xml \
+    php8.2-cli \
+    php8.2-intl \
+    php8.2-mbstring \
+    php8.2-xml \
+    php8.2-curl \
+    php8.2-zip \
     libxcb-shm0-dev \
     libxcb-xfixes0-dev \
     libasound-dev \
     libsdl2-dev \
     libva-dev \
-    libvdpau-dev
+    libvdpau-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 #Mount volumes
 VOLUME /temp
 VOLUME /config
 
 #install actual m4b-tool
-#RUN echo "---- INSTALL M4B-TOOL ----" && \
-#    wget https://github.com/sandreas/m4b-tool/releases/download/v.0.4.2/m4b-tool.phar -O /usr/local/bin/m4b-tool && \
-#    chmod +x /usr/local/bin/m4b-tool
-ARG M4B_TOOL_DOWNLOAD_LINK="https://github.com/sandreas/m4b-tool/releases/latest/download/m4b-tool.tar.gz"
-RUN echo "---- INSTALL M4B-TOOL ----" \
-    && if [ ! -f /tmp/m4b-tool.phar ]; then \
-    wget "${M4B_TOOL_DOWNLOAD_LINK}" -O /tmp/m4b-tool.tar.gz && \
-    if [ ! -f /tmp/m4b-tool.phar ]; then \
-    tar xzf /tmp/m4b-tool.tar.gz -C /tmp/ && rm /tmp/m4b-tool.tar.gz ;\
-    fi \
-    fi \
-    && mv /tmp/m4b-tool.phar /usr/local/bin/m4b-tool \
-    && M4B_TOOL_PRE_RELEASE_LINK=$(wget -q -O - https://github.com/sandreas/m4b-tool/releases/tag/latest | grep -o 'M4B_TOOL_DOWNLOAD_LINK=[^ ]*' | head -1 | cut -d '=' -f 2) \
-    && wget "${M4B_TOOL_PRE_RELEASE_LINK}" -O /tmp/m4b-tool.tar.gz \
-    && tar xzf /tmp/m4b-tool.tar.gz -C /tmp/ && rm /tmp/m4b-tool.tar.gz \
-    && mv /tmp/m4b-tool.phar /usr/local/bin/m4b-tool \
-    && chmod +x /usr/local/bin/m4b-tool
+RUN echo "---- INSTALL M4B-TOOL ----" && \
+    wget https://github.com/sandreas/m4b-tool/releases/download/v0.5.2/m4b-tool.phar -O /usr/local/bin/m4b-tool && \
+    chmod +x /usr/local/bin/m4b-tool
 
 
-# Test that the pre-release version is installed
-# ensure `m4b-tool --version` is 'v0.5-prerelease or later'
+# Test that m4b-tool is installed correctly
 RUN echo "---- CHECK M4B-TOOL VERSION ----" && \
-    echo "m4b-tool version: $(m4b-tool --version)" && \
-    m4b-tool --version | grep -qv 'v.0.4.2'
+    m4b-tool --version
 
-FROM m4b-tool as python
+FROM m4b-tool AS python
 
 # ENV PUID=""
 # ENV PGID=""

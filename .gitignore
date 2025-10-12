@@ -9,3 +9,9 @@ docker-compose.yml
 ._*
 sandbox/
 /m4b-tool
+
+# Project tracking files (local only)
+PROJECT_ROADMAP.md
+TODO.md
+WORK_LOG.md
+docker-compose.local.yml
