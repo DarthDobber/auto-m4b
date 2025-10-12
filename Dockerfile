@@ -129,7 +129,8 @@ RUN echo "---- INSTALL PHP 8.2+ FROM PPA ----" && \
     libasound-dev \
     libsdl2-dev \
     libva-dev \
-    libvdpau-dev && \
+    libvdpau-dev \
+    gosu && \
     rm -rf /var/lib/apt/lists/*
 
 #Mount volumes
@@ -148,37 +149,13 @@ RUN echo "---- CHECK M4B-TOOL VERSION ----" && \
 
 FROM m4b-tool AS python
 
-# ENV PUID=""
-# ENV PGID=""
-# ENV CPU_CORES=""
-# ENV SLEEP_TIME=""
-
-RUN echo "---- ADD AUTOM4B USER/GROUP ----"
-# set up user account
-ARG USERNAME=autom4b
-ARG PUID
-ARG PGID
-
-RUN if [ -z ${PUID} ] || [ -z ${PGID} ]; then \
-    echo "PUID and PGID must be set: pass --build-arg PUID=### --build-arg PGID=## or set in docker-compose.yml > build > args"; \
-    exit 1; \
-    fi
-
-# check if group exists, if not, create it
-RUN getent group ${USERNAME} || groupadd -g ${PGID} ${USERNAME}
-# check if user exists, if not, create it but don't prompt for input
-RUN getent passwd ${USERNAME} || useradd -m -u ${PUID} -g ${PGID} -s /bin/bash ${USERNAME}
+# Default environment variables (can be overridden at runtime)
+ENV PUID=1000
+ENV PGID=1000
 
 #Python deps
 RUN echo "---- INSTALL PYTHON PREREQS----"
-# RUN apt-get install -y --reinstall ca-certificates
-# RUN add-apt-repository -y 'ppa:deadsnakes/ppa'
 RUN apt-get update && apt-get install -y libssl-dev openssl build-essential
-# RUN apt-get install -y ffmpeg
-
-USER ${USERNAME}
-RUN sh -c "$(wget -O- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" --unattended
-USER root
 
 RUN echo "---- INSTALL PYTHON & PIP ----"
 
@@ -207,10 +184,8 @@ RUN echo "---- INSTALL PIP ----" && \
     python get-pip.py && \
     rm get-pip.py
 
-# Switch to our non-root user
-# USER ${USERNAME}
-# add the default pip bin install location to the PATH
-ENV PATH="$PATH:/home/${USERNAME}/.local/bin"
+# Add pip bin install location to the PATH (will be set for autom4b user at runtime)
+ENV PATH="$PATH:/home/autom4b/.local/bin"
 
 # install deps
 RUN echo "---- INSTALL PYTHON DEPENDENCIES ----"
@@ -241,10 +216,7 @@ COPY src /auto-m4b/src
 
 # RUN chmod +x /auto-m4b/run.sh
 RUN chmod -R 766 /auto-m4b
-RUN chown -R ${USERNAME}:${USERNAME} /auto-m4b
-USER ${USERNAME}
-
-USER root
+# Ownership will be set at runtime by entrypoint.sh
 
 
 # RUN pipenv run pip install ffmpeg-python --force-reinstall
@@ -268,23 +240,10 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # replace the line that starts with `filter f_syslog3` in /etc/syslog-ng/syslog-ng.conf with `filter f_syslog3 { not facility(cron, auth, authpriv, mail) and not filter(f_debug); };`
 # RUN sed -i 's/^filter f_syslog3.*/filter f_syslog3 { not facility(cron, auth, authpriv, mail) and not filter(f_debug); };/' /etc/syslog-ng/syslog-ng.conf
 
-# install zsh and omz and set it as default shell
-RUN sed -i 's/\/bin\/bash/\/usr\/bin\/zsh/g' /etc/passwd
-RUN chsh -s /usr/bin/zsh
-# echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.profile && \
-# echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.profile && \
-# echo 'eval "$(pyenv init -)"' >> ~/.profile
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Copy my_init because built-in one is broken in later python versions
-
-# ADD my_init_py312.py /usr/sbin/my_init
-
-# keep our container running so we can exec into it
-# ENTRYPOINT ["tail", "-f", "/dev/null"]
-# add pipenv to path
-# ENV PATH="/auto-m4b/.venv/bin:$PATH"
-
-# USER ${USERNAME}
-# CMD [ "PYTHONPATH=.:src", "python", "-m", "src", "-l", "-1" ]
-USER ${USERNAME}
+# Set entrypoint and default command
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD [ "pipenv", "run", "docker" ]

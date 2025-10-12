@@ -7,14 +7,13 @@ include:
 services:
   auto-m4b:
     # image: seanap/auto-m4b
-    # build: https://github.com/brandonscript/auto-m4b.git
+    # Or build from GitHub:
+    # build: https://github.com/DarthDobber/auto-m4b.git
     # stdin_open: true # docker run -i
     # tty: true # docker run -t
     build:
       context: .
-      args:
-        PUID: 1000
-        PGID: 1000
+      # Note: PUID/PGID no longer needed as build args - set via environment variables instead
     container_name: auto-m4b
     restart: unless-stopped
     volumes:
@@ -27,6 +26,8 @@ services:
       - bridge
     environment:
       - LANG=en_US.UTF-8
+      # Set PUID/PGID to match your user's UID/GID (run `id` to find yours)
+      # Defaults to 1000:1000 if not specified
       - PUID=1000
       - PGID=1000
       - MAX_CHAPTER_LENGTH=15,30

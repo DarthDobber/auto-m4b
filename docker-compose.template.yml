@@ -4,8 +4,10 @@ name: auto-m4b
 services:
   auto-m4b:
     image: seanap/auto-m4b
-    # build: https://github.com/brandonscript/auto-m4b.git
-    build: .
+    # Or build from source:
+    # build: .
+    # Or build from GitHub:
+    # build: https://github.com/DarthDobber/auto-m4b.git
     container_name: auto-m4b
     restart: unless-stopped
     volumes:
@@ -13,6 +15,8 @@ services:
       - /etc/docker/auto-m4b/auto-m4b-tool.sh:/auto-m4b-tool.sh:ro
       # - downloads:/path/to/mount/downloads:rw
     environment:
+      # Set PUID/PGID to match your user's UID/GID (run `id` to find yours)
+      # Defaults to 1000:1000 if not specified
       - PUID=1000
       - PGID=1000
       - BACKUP=Y
