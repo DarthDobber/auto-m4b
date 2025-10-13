@@ -491,12 +491,13 @@ class InboxState(Hasher):
         key_path_or_book: str | Path | Audiobook,
         reason: str,
         last_updated: float | None = None,
+        is_transient: bool = True,
     ):
         if not self.get(key_path_or_book):
             self.set(key_path_or_book)
 
         if item := self.get(key_path_or_book):
-            item.set_failed(reason)
+            item.set_failed(reason, last_updated, is_transient)
             if last_updated is not None:
                 item._last_updated = last_updated
             _sync_failed_to_env()

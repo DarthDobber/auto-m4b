@@ -226,11 +226,24 @@ def audio_files_found():
 
 def fail_book(book: Audiobook, reason: str = "unknown"):
     """Adds the book's path to the failed books dict with a value of the last modified date of of the book"""
+    from src.lib.retry import categorize_error, format_retry_message, should_retry
+
     inbox = InboxState()
     if book.key in inbox.failed_books:
         return
-    inbox.set_failed(book.key, reason)
 
+    # Categorize the error
+    error_type = categorize_error(reason)
+    is_transient = error_type == "transient"
+
+    # Get current item to check retry count
+    item = inbox.get(book.key)
+    current_retry_count = item.retry_count if item else 0
+
+    # Set failed with retry metadata
+    inbox.set_failed(book.key, reason, is_transient=is_transient)
+
+    # Log the failure
     book.write_log(reason.strip().strip("\n"))
     book.set_active_dir("inbox")
     if (build_log := book.build_dir / book.log_filename) and build_log.exists():
@@ -243,6 +256,31 @@ def fail_book(book: Audiobook, reason: str = "unknown"):
         else:
             # move build dir log to inbox dir
             shutil.move(build_log, book.log_file)
+
+    # Print retry information
+    if should_retry(
+        current_retry_count + 1,
+        cfg.MAX_RETRIES,
+        is_transient,
+        cfg.RETRY_TRANSIENT_ERRORS,
+    ):
+        from src.lib.retry import calculate_backoff_delay
+        from src.lib.formatters import human_elapsed_time
+
+        delay_seconds = calculate_backoff_delay(current_retry_count, cfg.RETRY_BASE_DELAY)
+        retry_msg = format_retry_message(
+            book.dir_name,
+            current_retry_count + 1,
+            cfg.MAX_RETRIES,
+            error_type,
+            delay_seconds,
+        )
+        print_notice(f"  {retry_msg}")
+    else:
+        if error_type == "permanent":
+            print_error(f"  Permanent error - manual fix required")
+        else:
+            print_error(f"  Max retries exceeded - giving up")
 
 
 def backup_ok(book: Audiobook):
@@ -367,35 +405,78 @@ def ok_to_overwrite(book: Audiobook):
 
 
 def check_failed_books():
+    """Check failed books and determine if they should be retried based on exponential backoff."""
+    from src.lib.retry import can_retry_now, should_retry, format_retry_message
+
     inbox = InboxState()
     if not inbox.failed_books:
         return
-    # print_debug(f"Found failed books: {[k for k in inbox.failed_books.keys()]}")
+
+    print_debug(f"Checking {len(inbox.failed_books)} failed book(s) for retry eligibility...")
+
     for book_name, item in inbox.failed_books.items():
-        # ensure last_modified is a float
         failed_book = Audiobook(cfg.inbox_dir / book_name)
-        # was_modified = (
-        #     last_updated_at(failed_book.inbox_dir, only_file_exts=cfg.AUDIO_EXTS)
-        #     > item.last_updated
-        # )
-        # if was_modified:
-        #     print_debug(
-        #         f"{book_name} has been modified since it failed last, checking if hash has changed"
-        #     )
+
+        # Check if files have been manually modified (hash changed)
         last_book_hash = item._curr_hash
         curr_book_hash = failed_book.hash()
+
         if last_book_hash is None:
             raise ValueError(
                 f"Book {failed_book.inbox_dir} was in failed books but no hash was found for it, this should not happen\ncurr: {curr_book_hash}"
             )
+
         hash_changed = last_book_hash != curr_book_hash
         if hash_changed:
-            # print_debug(
-            #     f"{book_name} hash changed since it failed last, removing it from failed books\n        was {last_book_hash}\n        now {curr_book_hash}"
-            # )
+            # Files changed - user manually fixed it
+            print_debug(
+                f"  {book_name}: Files changed, clearing retry state for manual retry"
+            )
             inbox.set_needs_retry(book_name)
-        # else:
-        #     print_debug(f"{book_name} hash is the same, keeping it in failed books")
+            continue
+
+        # Files haven't changed - check if we should auto-retry
+        if not should_retry(
+            item.retry_count,
+            cfg.MAX_RETRIES,
+            item.is_transient_error,
+            cfg.RETRY_TRANSIENT_ERRORS,
+        ):
+            # Don't retry - either permanent error or max retries exceeded
+            error_type = "permanent" if not item.is_transient_error else "transient"
+            print_debug(
+                format_retry_message(
+                    book_name,
+                    item.retry_count,
+                    cfg.MAX_RETRIES,
+                    error_type,
+                )
+            )
+            continue
+
+        # Check if enough time has passed for retry (exponential backoff)
+        can_retry, seconds_until = can_retry_now(
+            item.last_retry_time,
+            item.retry_count,
+            cfg.RETRY_BASE_DELAY,
+        )
+
+        if can_retry:
+            print_notice(
+                f"  {book_name}: Retrying after backoff (attempt {item.retry_count + 1}/{cfg.MAX_RETRIES})..."
+            )
+            inbox.set_needs_retry(book_name)
+        else:
+            # Still in backoff period
+            print_debug(
+                format_retry_message(
+                    book_name,
+                    item.retry_count,
+                    cfg.MAX_RETRIES,
+                    "transient",
+                    seconds_until,
+                )
+            )
 
 
 def copy_to_working_dir(book: Audiobook):

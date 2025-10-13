@@ -459,6 +459,27 @@ class Config:
 
     CONVERT_SERIES = _CONVERT_SERIES
 
+    @env_property(typ=int, default=3)
+    def _MAX_RETRIES(self):
+        """Maximum number of times to retry a failed book (default: 3)"""
+        ...
+
+    MAX_RETRIES = _MAX_RETRIES
+
+    @env_property(typ=bool, default=True)
+    def _RETRY_TRANSIENT_ERRORS(self):
+        """Whether to automatically retry transient errors (default: True)"""
+        ...
+
+    RETRY_TRANSIENT_ERRORS = _RETRY_TRANSIENT_ERRORS
+
+    @env_property(typ=int, default=60)
+    def _RETRY_BASE_DELAY(self):
+        """Base delay in seconds for exponential backoff (default: 60)"""
+        ...
+
+    RETRY_BASE_DELAY = _RETRY_BASE_DELAY
+
     @property
     def MAX_LOOPS(self):
         return self.args.max_loops if self.args.max_loops else -1

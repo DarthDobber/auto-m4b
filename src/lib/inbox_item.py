@@ -74,6 +74,12 @@ class InboxItem:
         self.status: InboxItemStatus = "new"
         self.failed_reason: str = ""
 
+        # Retry tracking
+        self.retry_count: int = 0
+        self.last_retry_time: float = 0
+        self.first_failed_time: float = 0
+        self.is_transient_error: bool = True
+
     def __repr__(self):
         return self.__str__()
 
@@ -150,16 +156,28 @@ class InboxItem:
             self._last_updated = last_updated
         self.hash
 
-    def set_failed(self, reason: str, last_updated: float | None = None):
+    def set_failed(self, reason: str, last_updated: float | None = None, is_transient: bool = True):
         from src.lib.inbox_state import _sync_failed_to_env
 
         self._set("failed", reason, last_updated)
+        self.is_transient_error = is_transient
+
+        # Track retry metadata
+        if self.first_failed_time == 0:
+            self.first_failed_time = time.time()
+        self.retry_count += 1
+        self.last_retry_time = time.time()
+
         _sync_failed_to_env()
 
     def set_needs_retry(self):
         from src.lib.inbox_state import _sync_failed_to_env
 
         self._set("needs_retry")
+        # Reset retry tracking when files change (manual fix detected)
+        self.retry_count = 0
+        self.first_failed_time = 0
+        self.last_retry_time = 0
         _sync_failed_to_env()
 
     def set_ok(self):
@@ -288,6 +306,10 @@ class InboxItem:
             "hash_age": self.hash_age,
             "status": status,
             "failed_reason": self.failed_reason,
+            "retry_count": self.retry_count,
+            "last_retry_time": self.last_retry_time,
+            "first_failed_time": self.first_failed_time,
+            "is_transient_error": self.is_transient_error,
         }
 
     def to_audiobook(self, active_dir: DirName = "inbox") -> Audiobook:
