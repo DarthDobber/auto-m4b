@@ -26,18 +26,33 @@ id
 
 ## Installation Methods
 
-### Method 1: Using Pre-Built Docker Image (Recommended)
+### Method 1: Building from Source (Recommended)
 
-This is the fastest way to get started.
+> **Note**: Pre-built Docker images are not currently available on Docker Hub. You'll need to build the image locally.
 
-#### Step 1: Create Folder Structure
+#### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/DarthDobber/auto-m4b.git
+cd auto-m4b
+```
+
+#### Step 2: Create Folder Structure
 
 ```bash
 # Create folders for audiobook processing
-mkdir -p ~/audiobooks/{inbox,converted,archive,backup}
+mkdir -p ~/audiobooks/{inbox,converted,archive,backup,failed}
 ```
 
-#### Step 2: Create docker-compose.yml
+#### Step 3: Build the Docker Image
+
+```bash
+docker build -t darthdobber/auto-m4b:latest .
+```
+
+This will take 5-10 minutes on the first build as it compiles ffmpeg and other dependencies.
+
+#### Step 4: Create docker-compose.yml
 
 Create a file called `docker-compose.yml`:
 
@@ -53,6 +68,7 @@ services:
       - ~/audiobooks/converted:/converted
       - ~/audiobooks/archive:/archive
       - ~/audiobooks/backup:/backup
+      - ~/audiobooks/failed:/failed
     environment:
       # Replace with your PUID/PGID from the 'id' command
       - PUID=1000
@@ -63,16 +79,19 @@ services:
       - CONVERTED_FOLDER=/converted
       - ARCHIVE_FOLDER=/archive
       - BACKUP_FOLDER=/backup
+      - FAILED_FOLDER=/failed
 
       # Optional: performance tuning
       - CPU_CORES=2
       - SLEEP_TIME=10
 
-      # Optional: chapter settings (15-30 minute chapters)
-      - MAX_CHAPTER_LENGTH=15,30
+      # Optional: retry configuration (Phase 1.2)
+      - MAX_RETRIES=3
+      - RETRY_TRANSIENT_ERRORS=Y
+      - RETRY_BASE_DELAY=60
 ```
 
-#### Step 3: Start the Container
+#### Step 5: Start the Container
 
 ```bash
 # Start Auto-M4B
@@ -109,43 +128,35 @@ After processing completes (timing depends on book size and CPU):
 - **Original Files**: `~/audiobooks/archive/` (if ON_COMPLETE=archive)
 - **Backup Copy**: `~/audiobooks/backup/` (if BACKUP=Y)
 
-### Method 2: Building from Source
+### Handling Failed Books
 
-If you want to customize the code or contribute to development:
+If a book fails conversion after the maximum number of retries (default: 3), Auto-M4B will automatically:
 
-#### Step 1: Clone the Repository
+1. Move the book to the `failed/` folder with a timestamp
+2. Create a `FAILED_INFO.txt` file with:
+   - Failure reason and error details
+   - Number of retry attempts made
+   - Recovery instructions
 
+**To retry a failed book**:
 ```bash
-git clone https://github.com/DarthDobber/auto-m4b.git
-cd auto-m4b
+# Fix the issues (if possible), then move it back to inbox
+mv ~/audiobooks/failed/BookName_TIMESTAMP ~/audiobooks/inbox/BookName
 ```
 
-#### Step 2: Build the Image
-
-```bash
-docker build -t darthdobber/auto-m4b:latest .
-```
-
-#### Step 3: Create docker-compose.yml
-
-Use the same `docker-compose.yml` from Method 1, or use the included `docker-compose.template.yml` as a starting point.
-
-#### Step 4: Run the Container
-
-```bash
-docker-compose up -d
-```
+Auto-M4B will detect that files changed and reset the retry counter, giving you fresh retry attempts.
 
 ## Folder Structure Explained
 
-Auto-M4B uses four main folders:
+Auto-M4B uses five main folders:
 
 ```
 ~/audiobooks/
 ├── inbox/          # Place new audiobooks here (input)
 ├── converted/      # Converted M4B files appear here (output)
 ├── archive/        # Original files moved here after conversion
-└── backup/         # Backup of original files (optional)
+├── backup/         # Backup of original files (optional)
+└── failed/         # Books that failed after max retries
 ```
 
 ### Folder Purposes
@@ -154,6 +165,7 @@ Auto-M4B uses four main folders:
 - **converted/**: Your finished M4B audiobooks will be placed here, ready for tagging or importing to Plex/Audiobookshelf.
 - **archive/**: Original files are moved here after successful conversion (configurable with `ON_COMPLETE`).
 - **backup/**: A backup copy of originals before processing (can be disabled with `BACKUP=N`).
+- **failed/**: Books that failed conversion after max retries are moved here with detailed failure information.
 
 ## Testing Your Setup
 
@@ -248,9 +260,12 @@ Here are the most useful settings for getting started:
 | `PGID` | 1000 | Group ID for file ownership |
 | `CPU_CORES` | All cores | Number of CPU cores to use |
 | `SLEEP_TIME` | 10 | Seconds between inbox scans |
-| `MAX_CHAPTER_LENGTH` | 15,30 | Chapter length in minutes (min,max) |
 | `BACKUP` | Y | Create backup of original files |
 | `DEBUG` | N | Enable detailed logging |
+| `MAX_RETRIES` | 3 | Maximum retry attempts for failed books |
+| `RETRY_TRANSIENT_ERRORS` | Y | Automatically retry transient errors |
+| `RETRY_BASE_DELAY` | 60 | Base delay (seconds) for exponential backoff |
+| `MOVE_FAILED_BOOKS` | Y | Move failed books to failed folder |
 
 For a complete list, see the [Configuration Reference](configuration.md).
 

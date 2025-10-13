@@ -59,7 +59,6 @@ The `cfg` singleton is automatically instantiated and available throughout the a
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `MAX_CHAPTER_LENGTH` | `str` | `"900,1800"` | Min/max chapter length in seconds |
 | `USE_FILENAMES_AS_CHAPTERS` | `bool` | `False` | Use filenames as chapter names |
 | `AUDIO_EXTS` | `list[str]` | `[".mp3", ...]` | Recognized audio extensions |
 

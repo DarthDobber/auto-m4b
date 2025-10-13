@@ -116,14 +116,6 @@ These settings **must** be configured:
 
 ## Audio Processing Settings
 
-### MAX_CHAPTER_LENGTH
-- **Type**: String (comma-separated minutes)
-- **Default**: `15,30`
-- **Description**: Min and max chapter length in minutes
-- **Format**: `min,max`
-- **Example**: `10,20` (10-20 min chapters), `5,15` (5-15 min chapters)
-- **Notes**: m4b-tool will split/merge chapters to fit within this range
-
 ### USE_FILENAMES_AS_CHAPTERS
 - **Type**: Boolean
 - **Default**: `N`
@@ -342,7 +334,6 @@ environment:
   - CONVERTED_FOLDER=/converted
   - ARCHIVE_FOLDER=/archive
   - BACKUP_FOLDER=/backup
-  - MAX_CHAPTER_LENGTH=5,10
   - USE_FILENAMES_AS_CHAPTERS=Y
 ```
 

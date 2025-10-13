@@ -49,7 +49,6 @@ services:
       - WAIT_TIME=10             # Wait 10 seconds after file changes
 
       # Audio settings
-      - MAX_CHAPTER_LENGTH=10,20 # 10-20 minute chapters
       - USE_FILENAMES_AS_CHAPTERS=Y
 
       # Behavior

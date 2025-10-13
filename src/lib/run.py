@@ -288,6 +288,67 @@ def fail_book(book: Audiobook, reason: str = "unknown"):
             print_error(f"  Max retries exceeded - giving up")
 
 
+def move_to_failed(book: Audiobook, reason: str, retry_count: int, is_transient: bool):
+    """Move a failed book to the failed folder with metadata."""
+    from src.lib.formatters import friendly_short_date
+    from datetime import datetime
+
+    if not cfg.MOVE_FAILED_BOOKS:
+        print_debug(f"  {book.basename}: Not moving to failed folder (MOVE_FAILED_BOOKS=False)")
+        return
+
+    # Create timestamped directory name to avoid conflicts
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    failed_book_dir = cfg.failed_dir / f"{book.basename}_{timestamp}"
+
+    try:
+        print_notice(f"  {book.basename}: Moving to failed folder...")
+
+        # Create failed directory
+        failed_book_dir.mkdir(parents=True, exist_ok=True)
+
+        # Move the book folder
+        cp_dir_contents(book.inbox_dir, failed_book_dir, overwrite_mode="overwrite")
+
+        # Create FAILED_INFO.txt with failure details
+        info_content = f"""FAILED BOOK INFORMATION
+{'=' * 60}
+
+Book Name: {book.basename}
+Failed At: {friendly_short_date(datetime.now())}
+Error Type: {'Transient' if is_transient else 'Permanent'}
+Retry Count: {retry_count}
+Max Retries: {cfg.MAX_RETRIES}
+
+Failure Reason:
+{'-' * 60}
+{reason}
+{'-' * 60}
+
+RECOVERY INSTRUCTIONS:
+1. Fix the issue with the audiobook files in this directory
+2. Move the fixed folder back to: {cfg.inbox_dir}
+3. auto-m4b will detect it as a previously failed book and retry
+
+Note: Moving it back will reset the retry count, giving you
+{cfg.MAX_RETRIES} fresh attempts.
+"""
+
+        info_file = failed_book_dir / "FAILED_INFO.txt"
+        info_file.write_text(info_content)
+
+        # Remove from inbox
+        rm_dir(book.inbox_dir, ignore_errors=False, even_if_not_empty=True)
+
+        print_notice(f"  {book.basename}: Moved to {tint_path(failed_book_dir)}")
+
+        # Update inbox state to remove the book
+        InboxState().set_gone(book)
+
+    except Exception as e:
+        print_error(f"  {book.basename}: Failed to move to failed folder: {e}")
+
+
 def backup_ok(book: Audiobook):
     # Copy files to backup destination
     if not cfg.BACKUP:
@@ -459,6 +520,14 @@ def check_failed_books():
                 error_type,
             )
             print_notice(f"  {retry_msg}")
+
+            # Move to failed folder
+            move_to_failed(
+                failed_book,
+                item.failed_reason or "Unknown error",
+                item.retry_count,
+                item.is_transient_error
+            )
             continue
 
         # Check if enough time has passed for retry (exponential backoff)

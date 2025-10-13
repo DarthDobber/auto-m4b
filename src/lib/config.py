@@ -403,31 +403,6 @@ class Config:
             else f"{self.SLEEP_TIME:.1f}s"
         )
 
-    # @cached_property
-    # def MAX_CHAPTER_LENGTH(self):
-
-    #     max_chapter_length = self.get_env_var("MAX_CHAPTER_LENGTH", "15,30")
-    #     return ",".join(str(int(x) * 60) for x in max_chapter_length.split(","))
-
-    @env_property(
-        typ=str,
-        default="15,30",
-        on_get=lambda v: ",".join(str(int(x) * 60) for x in v.split(",")),
-    )
-    def _MAX_CHAPTER_LENGTH(self):
-        """Max chapter length in seconds, default is 15-30m, and is converted to m4b-tool's seconds format."""
-        ...
-
-    MAX_CHAPTER_LENGTH = _MAX_CHAPTER_LENGTH
-
-    @cached_property
-    def max_chapter_length_friendly(self):
-        return (
-            "-".join(
-                [str(int(int(t) / 60)) for t in self.MAX_CHAPTER_LENGTH.split(",")]
-            )
-            + "m"
-        )
 
     @env_property(typ=bool, default=False)
     def _USE_FILENAMES_AS_CHAPTERS(self): ...
@@ -480,6 +455,13 @@ class Config:
 
     RETRY_BASE_DELAY = _RETRY_BASE_DELAY
 
+    @env_property(typ=bool, default=True)
+    def _MOVE_FAILED_BOOKS(self):
+        """Whether to move failed books to the failed folder after max retries (default: True)"""
+        ...
+
+    MOVE_FAILED_BOOKS = _MOVE_FAILED_BOOKS
+
     @property
     def MAX_LOOPS(self):
         return self.args.max_loops if self.args.max_loops else -1
@@ -516,7 +498,6 @@ class Config:
     def info_str(self):
         info = f"{self.CPU_CORES} CPU cores / "
         info += f"{self.sleeptime_friendly} sleep / "
-        info += f"Max ch. length: {self.max_chapter_length_friendly} / "
         if self.USE_DOCKER:
             info += f"{self.m4b_tool_version} (Docker)"
         else:
@@ -566,6 +547,10 @@ class Config:
     @cached_property
     def backup_dir(self):
         return self.load_path_env("BACKUP_FOLDER", allow_empty=False)
+
+    @cached_property
+    def failed_dir(self):
+        return self.load_path_env("FAILED_FOLDER", allow_empty=False)
 
     @cached_property
     def tmp_dir(self):
@@ -626,6 +611,7 @@ class Config:
             self.converted_dir,
             self.archive_dir,
             self.backup_dir,
+            self.failed_dir,
             self.working_dir,
             self.build_dir,
             self.merge_dir,

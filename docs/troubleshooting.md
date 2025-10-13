@@ -350,14 +350,6 @@ Or manually edit chapters:
 3. Move entire book folder to inbox
 4. Auto-M4B will re-chapterize
 
-**Chapter length issues:**
-
-Adjust MAX_CHAPTER_LENGTH:
-```yaml
-environment:
-  - MAX_CHAPTER_LENGTH=10,20  # 10-20 minute chapters
-```
-
 **Missing chapters:**
 
 Ensure all audio files are valid:
