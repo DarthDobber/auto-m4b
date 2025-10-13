@@ -91,7 +91,32 @@ services:
       - RETRY_BASE_DELAY=60
 ```
 
-#### Step 5: Start the Container
+#### Step 5: Validate Your Configuration (Optional but Recommended)
+
+Before starting the container, verify your configuration is correct:
+
+```bash
+docker-compose run --rm auto-m4b pipenv run python -m src --validate
+```
+
+You should see:
+```
+✓ Configuration is valid!
+
+Configuration summary:
+  INBOX_FOLDER:     /inbox
+  CONVERTED_FOLDER: /converted
+  ...
+```
+
+If you see any errors, fix them in your `docker-compose.yml` before proceeding.
+
+**Tip**: You can also view all available configuration options:
+```bash
+docker run --rm darthdobber/auto-m4b:latest pipenv run python -m src --help-config
+```
+
+#### Step 6: Start the Container
 
 ```bash
 # Start Auto-M4B

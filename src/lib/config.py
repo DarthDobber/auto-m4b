@@ -113,6 +113,18 @@ parser.add_argument(
     type=str,
     default=None,
 )
+parser.add_argument(
+    "--validate",
+    help="Validate configuration and exit",
+    action="store_true",
+    default=False,
+)
+parser.add_argument(
+    "--help-config",
+    help="Show all configuration options and exit",
+    action="store_true",
+    default=False,
+)
 
 T = TypeVar("T", bound=object)
 D = TypeVar("D")
@@ -203,6 +215,8 @@ class AutoM4bArgs:
     test: bool | None
     max_loops: int
     match_filter: str | None
+    validate: bool
+    help_config: bool
 
     def __init__(
         self,
@@ -211,6 +225,8 @@ class AutoM4bArgs:
         test: bool | None = None,
         max_loops: int | None = None,
         match_filter: str | None = None,
+        validate: bool = False,
+        help_config: bool = False,
     ):
         args = parser.parse_known_args()[0]
 
@@ -219,6 +235,9 @@ class AutoM4bArgs:
         self.test = pick(test, args.test, None)
         self.max_loops = pick(max_loops, args.max_loops, -1)
         self.match_filter = pick(match_filter, args.match_filter)
+        # For boolean flags, prioritize argparse result if True (to respect CLI flags)
+        self.validate = args.validate if args.validate else validate
+        self.help_config = args.help_config if args.help_config else help_config
 
     def __str__(self) -> str:
         return to_json(self.__dict__)
@@ -284,7 +303,14 @@ class Config:
 
     def __init__(self):
         """Do a first load of the environment variables in case we need them before the app runs."""
-        self.load_env(quiet=True)
+        # Try to load env, but allow failure for --help-config and --validate flags
+        # This prevents errors when showing help before config is set up
+        try:
+            self.load_env(quiet=True)
+        except Exception as e:
+            # Config not set up yet - that's okay for help/validate commands
+            # Silently ignore all config errors during initialization
+            pass
 
     def startup(self, args: AutoM4bArgs | None = None):
         from src.lib.inbox_state import InboxState
@@ -806,6 +832,148 @@ class Config:
         self.__init__()
         self.clear_cached_attrs()
         self.load_env()
+
+    @staticmethod
+    def print_config_help():
+        """Print all available configuration options with descriptions."""
+        # Import here to avoid circular dependency issues
+        try:
+            from src.lib.term import print_mint, print_grey
+        except:
+            # Fallback if term module has issues
+            def print_mint(s):
+                print(s)
+            def print_grey(s):
+                print(s)
+
+        print_mint("\n=== Auto-M4B Configuration Options ===\n")
+
+        config_options = [
+            ("INBOX_FOLDER", "Path", "Directory to watch for new audiobooks (required)", None),
+            ("CONVERTED_FOLDER", "Path", "Directory where converted M4B files are saved (required)", None),
+            ("ARCHIVE_FOLDER", "Path", "Directory where original files are archived after conversion (required)", None),
+            ("BACKUP_FOLDER", "Path", "Directory where backups are stored (required)", None),
+            ("FAILED_FOLDER", "Path", "Directory where failed conversions are moved (required)", None),
+            ("WORKING_FOLDER", "Path", "Temporary working directory (default: system temp)", None),
+            ("", "", "", ""),
+            ("CPU_CORES", "Integer", f"Number of CPU cores to use for conversion (default: {cpu_count()})", cpu_count()),
+            ("SLEEP_TIME", "Float", f"Seconds to sleep between loops (default: {DEFAULT_SLEEP_TIME})", DEFAULT_SLEEP_TIME),
+            ("WAIT_TIME", "Float", f"Seconds to wait when directory recently modified (default: {DEFAULT_WAIT_TIME})", DEFAULT_WAIT_TIME),
+            ("", "", "", ""),
+            ("ON_COMPLETE", "String", "What to do after conversion: 'archive', 'delete', or 'test_do_nothing' (default: archive)", "archive"),
+            ("OVERWRITE_EXISTING", "Boolean", "Whether to overwrite existing M4B files (default: N)", False),
+            ("BACKUP", "Boolean", "Whether to create backups (default: Y)", True),
+            ("", "", "", ""),
+            ("MAX_RETRIES", "Integer", "Maximum retry attempts for failed books (default: 3)", 3),
+            ("RETRY_TRANSIENT_ERRORS", "Boolean", "Automatically retry transient errors (default: Y)", True),
+            ("RETRY_BASE_DELAY", "Integer", "Base delay in seconds for exponential backoff (default: 60)", 60),
+            ("MOVE_FAILED_BOOKS", "Boolean", "Move books to failed folder after max retries (default: Y)", True),
+            ("", "", "", ""),
+            ("USE_FILENAMES_AS_CHAPTERS", "Boolean", "Use audio filenames as chapter names (default: N)", False),
+            ("FLATTEN_MULTI_DISC_BOOKS", "Boolean", "[Beta] Flatten multi-disc audiobooks into single file (default: N)", False),
+            ("CONVERT_SERIES", "Boolean", "[Beta] Convert entire book series as one audiobook (default: N)", False),
+            ("", "", "", ""),
+            ("AUDIO_EXTS", "String", "Comma-separated list of audio file extensions (default: .mp3,.m4a,.m4b,.wma)", ".mp3,.m4a,.m4b,.wma"),
+            ("NO_CATS", "Boolean", "Disable cat ASCII art (default: N)", False),
+            ("", "", "", ""),
+            ("DEBUG", "Boolean", "Enable debug logging (default: N)", False),
+            ("TEST", "Boolean", "Enable test mode (default: N)", False),
+        ]
+
+        for var_name, var_type, description, default in config_options:
+            if not var_name:  # Empty line for spacing
+                print()
+                continue
+
+            default_str = f" (default: {default})" if default is not None else ""
+            print_grey(f"  {var_name:<30} [{var_type}]")
+            print(f"    {description}")
+
+        print_mint("\n=== Docker-Specific Options ===\n")
+        print_grey(f"  {'USE_DOCKER':<30} [Boolean]")
+        print(f"    Force use of Docker for m4b-tool (auto-detected if not set)")
+        print_grey(f"  {'DOCKER_PATH':<30} [Path]")
+        print(f"    Path to docker executable (default: auto-detect)")
+
+        print_mint("\n=== Examples ===\n")
+        print("  Set via environment variable:")
+        print("    export CPU_CORES=4")
+        print()
+        print("  Set via .env file:")
+        print("    CPU_CORES=4")
+        print("    MAX_RETRIES=5")
+        print()
+        print("  Set via docker-compose.yml:")
+        print("    environment:")
+        print("      - CPU_CORES=4")
+        print("      - MAX_RETRIES=5")
+        print()
+
+    def validate_config(self) -> tuple[bool, list[str]]:
+        """
+        Validate the current configuration.
+
+        Returns:
+            tuple[bool, list[str]]: (is_valid, list of error messages)
+        """
+        errors = []
+
+        # Check required directory paths
+        required_dirs = [
+            ("INBOX_FOLDER", self.inbox_dir),
+            ("CONVERTED_FOLDER", self.converted_dir),
+            ("ARCHIVE_FOLDER", self.archive_dir),
+            ("BACKUP_FOLDER", self.backup_dir),
+            ("FAILED_FOLDER", self.failed_dir),
+        ]
+
+        for var_name, path in required_dirs:
+            if not path:
+                errors.append(f"{var_name} is not set or is empty")
+            else:
+                try:
+                    # Check if parent directory exists (we can create the final dir)
+                    if not path.parent.exists() and path.parent != path:
+                        errors.append(f"{var_name} parent directory does not exist: {path.parent}")
+                except Exception as e:
+                    errors.append(f"{var_name} is invalid: {e}")
+
+        # Check numeric values
+        if self.CPU_CORES <= 0:
+            errors.append(f"CPU_CORES must be greater than 0, got: {self.CPU_CORES}")
+
+        if self.CPU_CORES > cpu_count() * 2:
+            errors.append(f"CPU_CORES ({self.CPU_CORES}) is much higher than available cores ({cpu_count()}), this may cause performance issues")
+
+        if self.SLEEP_TIME < 0:
+            errors.append(f"SLEEP_TIME must be >= 0, got: {self.SLEEP_TIME}")
+
+        if self.WAIT_TIME < 0:
+            errors.append(f"WAIT_TIME must be >= 0, got: {self.WAIT_TIME}")
+
+        if self.MAX_RETRIES < 0:
+            errors.append(f"MAX_RETRIES must be >= 0, got: {self.MAX_RETRIES}")
+
+        if self.RETRY_BASE_DELAY < 0:
+            errors.append(f"RETRY_BASE_DELAY must be >= 0, got: {self.RETRY_BASE_DELAY}")
+
+        # Check ON_COMPLETE value
+        valid_on_complete = ["archive", "delete", "test_do_nothing"]
+        if self.ON_COMPLETE not in valid_on_complete:
+            errors.append(f"ON_COMPLETE must be one of {valid_on_complete}, got: {self.ON_COMPLETE}")
+
+        # Check m4b-tool availability
+        try:
+            self.check_m4b_tool()
+        except Exception as e:
+            errors.append(f"m4b-tool check failed: {e}")
+
+        # Check docker if USE_DOCKER is set
+        if os.getenv("USE_DOCKER"):
+            if not self.docker_path:
+                errors.append("USE_DOCKER is set but docker executable not found")
+
+        return (len(errors) == 0, errors)
 
 
 cfg = Config()

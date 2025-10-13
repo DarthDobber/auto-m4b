@@ -57,10 +57,13 @@ services:
       - BACKUP_FOLDER=/backup
 EOF
 
-# 3. Start the container
+# 3. Validate configuration (optional but recommended)
+docker-compose run --rm auto-m4b pipenv run python -m src --validate
+
+# 4. Start the container
 docker-compose up -d
 
-# 4. Add audiobooks to ~/audiobooks/inbox
+# 5. Add audiobooks to ~/audiobooks/inbox
 # They'll automatically be converted and moved to ~/audiobooks/converted
 ```
 

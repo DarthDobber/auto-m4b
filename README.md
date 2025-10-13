@@ -139,6 +139,68 @@ Auto-M4B is configured via environment variables. Here are the most important on
 
 See the [Configuration Reference](docs/configuration.md) for all options.
 
+### Configuration Validation & Help
+
+Auto-M4B now includes built-in configuration validation and help commands:
+
+#### Show All Configuration Options
+```bash
+# Using Docker
+docker run --rm darthdobber/auto-m4b:latest pipenv run python -m src --help-config
+
+# Using python directly
+python -m src --help-config
+```
+
+This displays all available configuration options with descriptions and default values.
+
+#### Validate Configuration
+```bash
+# Using Docker
+docker-compose run --rm auto-m4b pipenv run python -m src --validate
+
+# Using python directly
+python -m src --validate
+```
+
+The `--validate` command checks your configuration for:
+- ✅ Required directories exist and are accessible
+- ✅ Numeric values are within valid ranges
+- ✅ m4b-tool is available
+- ✅ Docker is configured correctly (if using Docker mode)
+- ✅ All values are properly formatted
+
+**Example output** (valid configuration):
+```
+✓ Configuration is valid!
+
+Configuration summary:
+  INBOX_FOLDER:     /home/user/audiobooks/inbox
+  CONVERTED_FOLDER: /home/user/audiobooks/converted
+  ARCHIVE_FOLDER:   /home/user/audiobooks/archive
+  BACKUP_FOLDER:    /home/user/audiobooks/backup
+  FAILED_FOLDER:    /home/user/audiobooks/failed
+  CPU_CORES:        8
+  MAX_RETRIES:      3
+  SLEEP_TIME:       10s
+  m4b-tool:         m4b-tool 0.5.2
+```
+
+**Example output** (invalid configuration):
+```
+✗ Configuration validation failed:
+
+  • CPU_CORES must be greater than 0, got: -1
+  • SLEEP_TIME must be >= 0, got: -5
+  • ON_COMPLETE must be one of ['archive', 'delete', 'test_do_nothing'], got: invalid
+```
+
+**Benefits**:
+- Catch configuration errors before starting the service
+- Verify directory permissions and accessibility
+- Ensure m4b-tool is properly installed
+- Validate environment variable values
+
 ## Example Configurations
 
 ### Basic (Recommended)

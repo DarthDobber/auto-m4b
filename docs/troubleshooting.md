@@ -4,6 +4,22 @@ This guide covers common issues and their solutions when using Auto-M4B.
 
 ## Quick Diagnostics
 
+### Validate Your Configuration First
+
+**Always start here** - validate your configuration before troubleshooting:
+
+```bash
+docker-compose run --rm auto-m4b pipenv run python -m src --validate
+```
+
+This checks:
+- ✅ All required directories exist and are accessible
+- ✅ Numeric values are valid (CPU_CORES > 0, etc.)
+- ✅ m4b-tool is available
+- ✅ Configuration values are properly formatted
+
+If validation fails, **fix the reported errors first** before investigating further.
+
 ### Check Container Status
 
 ```bash
