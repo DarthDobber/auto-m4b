@@ -1,0 +1,89 @@
+# Advanced Auto-M4B Docker Compose Configuration
+#
+# This configuration includes performance tuning, custom settings,
+# and beta features for advanced users.
+#
+# Usage:
+#   1. Copy this file to your project directory
+#   2. Customize settings as needed
+#   3. Run: docker-compose up -d
+
+version: '3.7'
+
+services:
+  auto-m4b:
+    image: darthdobber/auto-m4b:latest
+    container_name: auto-m4b
+    restart: unless-stopped
+
+    # Volume mounts
+    volumes:
+      # Main folders
+      - /path/to/audiobooks/inbox:/inbox
+      - /path/to/audiobooks/converted:/converted
+      - /path/to/audiobooks/archive:/archive
+      - /path/to/audiobooks/backup:/backup
+
+      # Optional: Use fast SSD for working directory
+      - /mnt/nvme/auto-m4b-temp:/tmp/auto-m4b
+
+      # Optional: Config folder for .env files
+      - /path/to/config:/config:ro
+
+    # Environment variables
+    environment:
+      # User/Group IDs
+      - PUID=1000
+      - PGID=1000
+
+      # Folder paths
+      - INBOX_FOLDER=/inbox
+      - CONVERTED_FOLDER=/converted
+      - ARCHIVE_FOLDER=/archive
+      - BACKUP_FOLDER=/backup
+      - WORKING_FOLDER=/tmp/auto-m4b
+
+      # Performance tuning
+      - CPU_CORES=8              # Use 8 CPU cores for conversion
+      - SLEEP_TIME=5             # Check inbox every 5 seconds
+      - WAIT_TIME=10             # Wait 10 seconds after file changes
+
+      # Audio settings
+      - MAX_CHAPTER_LENGTH=10,20 # 10-20 minute chapters
+      - USE_FILENAMES_AS_CHAPTERS=Y
+
+      # Behavior
+      - OVERWRITE_EXISTING=Y     # Overwrite existing M4B files
+      - BACKUP=Y                 # Keep backup copies
+      - ON_COMPLETE=archive      # Archive originals after conversion
+
+      # Beta features (test before production use!)
+      - FLATTEN_MULTI_DISC_BOOKS=Y
+      - CONVERT_SERIES=Y
+
+      # Filtering
+      - MATCH_FILTER=             # Optional: regex pattern to filter books
+
+      # Development/Debug
+      - DEBUG=N                  # Enable for verbose logging
+      - TEST=N                   # Enable test mode
+
+      # System
+      - TZ=America/New_York
+
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 4G
+        reservations:
+          cpus: '2.0'
+          memory: 1G
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

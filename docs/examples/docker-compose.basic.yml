@@ -1,0 +1,39 @@
+# Basic Auto-M4B Docker Compose Configuration
+#
+# This is a minimal configuration for getting started with Auto-M4B.
+# It uses default settings and requires only the essential folder mounts.
+#
+# Usage:
+#   1. Copy this file to your project directory
+#   2. Update the volume paths to match your system
+#   3. Run: docker-compose up -d
+
+version: '3.7'
+
+services:
+  auto-m4b:
+    image: darthdobber/auto-m4b:latest
+    container_name: auto-m4b
+    restart: unless-stopped
+
+    # Volume mounts - UPDATE THESE PATHS
+    volumes:
+      - /path/to/audiobooks/inbox:/inbox
+      - /path/to/audiobooks/converted:/converted
+      - /path/to/audiobooks/archive:/archive
+      - /path/to/audiobooks/backup:/backup
+
+    # Environment variables
+    environment:
+      # User/Group IDs - Run 'id' command to find yours
+      - PUID=1000
+      - PGID=1000
+
+      # Folder paths (match the volume mounts above)
+      - INBOX_FOLDER=/inbox
+      - CONVERTED_FOLDER=/converted
+      - ARCHIVE_FOLDER=/archive
+      - BACKUP_FOLDER=/backup
+
+      # Optional: Set timezone
+      - TZ=America/New_York

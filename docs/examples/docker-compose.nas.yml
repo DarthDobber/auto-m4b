@@ -1,0 +1,119 @@
+# NAS-Optimized Auto-M4B Docker Compose Configuration
+#
+# This configuration is optimized for use with network-attached storage (NAS).
+# It includes settings for CIFS/SMB mounts and performance tuning for network storage.
+#
+# Usage:
+#   1. Ensure NAS shares are mounted on the host
+#   2. Update paths to point to NAS mount points
+#   3. Adjust performance settings for network latency
+#   4. Run: docker-compose up -d
+
+version: '3.7'
+
+services:
+  auto-m4b:
+    image: darthdobber/auto-m4b:latest
+    container_name: auto-m4b
+    restart: unless-stopped
+
+    # Volume mounts - NAS paths
+    volumes:
+      # Option 1: Mount already-mounted NAS shares
+      - /mnt/nas/audiobooks/inbox:/inbox
+      - /mnt/nas/audiobooks/converted:/converted
+      - /mnt/nas/audiobooks/archive:/archive
+      - /mnt/nas/audiobooks/backup:/backup
+
+      # Use LOCAL SSD for working directory (much faster!)
+      - /var/lib/auto-m4b/working:/tmp/auto-m4b
+
+    environment:
+      - PUID=1000
+      - PGID=1000
+
+      # Folder paths
+      - INBOX_FOLDER=/inbox
+      - CONVERTED_FOLDER=/converted
+      - ARCHIVE_FOLDER=/archive
+      - BACKUP_FOLDER=/backup
+      - WORKING_FOLDER=/tmp/auto-m4b
+
+      # NAS-optimized performance settings
+      - CPU_CORES=4
+      - SLEEP_TIME=30            # Longer sleep for network storage
+      - WAIT_TIME=15             # Longer wait to ensure network transfers complete
+
+      # Reduce disk I/O
+      - BACKUP=N                 # Disable backup to reduce NAS writes
+
+      - TZ=America/New_York
+
+# =============================================================================
+# Alternative: Docker volume with CIFS mount
+# =============================================================================
+# Uncomment the following to mount CIFS/SMB shares directly from Docker
+# (Not recommended - mount on host instead for better performance)
+
+# services:
+#   auto-m4b:
+#     volumes:
+#       - audiobooks-inbox:/inbox
+#       - audiobooks-converted:/converted
+#       - audiobooks-archive:/archive
+#       - audiobooks-backup:/backup
+#       - /var/lib/auto-m4b/working:/tmp/auto-m4b
+#
+# volumes:
+#   audiobooks-inbox:
+#     driver: local
+#     driver_opts:
+#       type: cifs
+#       o: username=myuser,password=mypass,uid=1000,gid=1000,vers=3.0,rw
+#       device: //nas-ip-address/audiobooks-inbox
+#
+#   audiobooks-converted:
+#     driver: local
+#     driver_opts:
+#       type: cifs
+#       o: username=myuser,password=mypass,uid=1000,gid=1000,vers=3.0,rw
+#       device: //nas-ip-address/audiobooks-converted
+#
+#   audiobooks-archive:
+#     driver: local
+#     driver_opts:
+#       type: cifs
+#       o: username=myuser,password=mypass,uid=1000,gid=1000,vers=3.0,rw
+#       device: //nas-ip-address/audiobooks-archive
+#
+#   audiobooks-backup:
+#     driver: local
+#     driver_opts:
+#       type: cifs
+#       o: username=myuser,password=mypass,uid=1000,gid=1000,vers=3.0,rw
+#       device: //nas-ip-address/audiobooks-backup
+
+# =============================================================================
+# Notes for NAS Users
+# =============================================================================
+#
+# 1. ALWAYS use local SSD/NVMe for WORKING_FOLDER
+#    - Conversion is I/O intensive
+#    - Network storage will be very slow
+#    - Local storage is 10-100x faster
+#
+# 2. Consider disabling BACKUP=N
+#    - Reduces network writes by 50%
+#    - Your NAS may already have backup/snapshot features
+#
+# 3. Increase SLEEP_TIME and WAIT_TIME
+#    - Network latency is higher than local storage
+#    - Prevents processing incomplete transfers
+#
+# 4. Monitor network bandwidth
+#    - Large audiobooks use significant bandwidth
+#    - Consider scheduling conversions during off-peak hours
+#
+# 5. Test PUID/PGID carefully
+#    - NAS shares may have specific permission requirements
+#    - Ensure the user can read/write to all folders

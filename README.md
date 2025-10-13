@@ -2,115 +2,279 @@
 
 [![Join the chat at https://gitter.im/Audiobook-Server/auto-m4b](https://badges.gitter.im/Audiobook-Server/auto-m4b.svg)](https://gitter.im/Audiobook-Server/auto-m4b?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-This container is mostly based on the powerful [m4b-tool](https://github.com/sandreas/m4b-tool) made by sandreas  
-This repo is my fork of the fantastic [docker-m4b-tool](https://github.com/9Mad-Max5/docker-m4b-tool) created by 9Mad-Max5. 
+A Docker-based automation tool for converting multi-file audiobooks to chapterized M4B format.
 
-This is a docker container that will watch a folder for new books, auto convert mp3 books to chapterized m4b, and move all m4b books to a specific output folder, this output folder is where the [beets.io audible plugin](https://github.com/seanap/beets-audible) will look for audiobooks and use the audible api to perfectly tag and organize your books.
+This project is based on the powerful [m4b-tool](https://github.com/sandreas/m4b-tool) by sandreas. Originally created by [seanap/auto-m4b](https://github.com/seanap/auto-m4b), then forked and improved by [brandonscript/auto-m4b](https://github.com/brandonscript/auto-m4b), this is my fork with additional enhancements.
 
-## Intended Use
-This is meant to be an automated step between aquisition and tagging.
-* Install via docker-compose 
-* Save new audiobooks to a /recentlyadded folder.
-* All multifile m4b/mp3/m4a/ogg books will be converted to a chapterized m4b and saved to an /untagged folder  
-* This script will watch `/temp/recentlyadded` and automatically move mp3 books to `/temp/merge`, then automatically put all m4b's in the output folder `/temp/untagged`.  It also makes a backup incase something goes wrong (can be disabled if desired).
+## What Does It Do?
 
-Use the [beets.io audible plugin](https://github.com/seanap/beets-audible) to finish the tagging and sorting.
+Auto-M4B watches a folder for new audiobooks and automatically:
+- ✅ Converts MP3, M4A, OGG, and WMA files to M4B format
+- ✅ Creates chapters based on file structure
+- ✅ Preserves metadata and cover art
+- ✅ Archives original files
+- ✅ Handles multi-disc books and series
 
-## Known Limitations
+Perfect for integrating with [beets-audible](https://github.com/seanap/beets-audible) for automated tagging and organization.
 
-* The chapters are based on the mp3 tracks. A single mp3 file will become a single m4b with 1 chapter, also if the mp3 filenames are garbarge then your m4b chapternames will be terrible as well.  See section on Chapters below for how to manually adjust.  
-* Right now book folders with nested subfolders will be moved to a /fix folder for manual filename/folder fixing.  It should be possible to modify the auto-m4b-tool.sh script to automatically prefix the subfoldername and move the files up a level, let me know if you know how to do this.  
-* The conversion process actually strips some tags and covers from the files, which is why you need to use a tagger (mp3tag or beets.io) before adding to Plex.
+## Quick Start
 
-## Need ARM Support?
-Change the image to `spencermksmith/auto-m4b`
+### Prerequisites
 
-## Using torrents and need to preserve seeding?
-In the settings of your client add this line to `Run external program on torrent completion`, it will copy all finished torrent files to your "recentlyadded" folder:
-* `cp -r "%F" "path/to/temp/recentlyadded"`
-
-## How to use
-This docker assumes the following folder structure:
-
-```sh
-temp
-│
-└───recentlyadded # Input folder Add new books here
-│     │     book1.m4b
-│     |     book2.mp3
-|     └─────book3
-│           │   01-book3.mp3
-│           │   ... 
-└───merge # folder the script uses to combine mp3's
-│     └─────book2
-│           │   01-book2.mp3
-│           │   ...
-└───untagged # Output folder where all m4b's wait to be tagged
-│     └─────book4
-│           │   book4.m4b
-└───delete # needed by the script
-|
-└───fix # Manually fix books with nested folders
-|
-└───backup # Backups incase anything goes wrong
-      └─────book2
-            │   01-book2.mp3
-            │   ... 
-```
+- Docker and Docker Compose installed
+- Basic command-line knowledge
 
 ### Installation
 
-1. Create a `temp` folder and keep the location in mind for Step 6 
-2. Install docker https://docs.docker.com/engine/install/ubuntu/
-3. Manage docker as non-root https://docs.docker.com/engine/install/linux-postinstall/
-4. Install docker-compose https://docs.docker.com/compose/install/
-5. Create the compose file:  
-    `nano docker-compose.yml`
-6. Paste the yaml code below into the compose file, and change the volume mount locations
-7. Put a test mp3 in the /temp/recentlyadded directory.
-8. Start the docker (It should convert the mp3 and leave it in your /temp/untagged directory. It runs automatically every 5 min)  
-    `docker-compose up -d`
-### Example docker-compose.yml
-*  Replace the `/path/to/...` with your actual folder locations, but leave the `:` and everything after:  
-*  Replace the PUID and PGID with your user ( [?](https://www.carnaghan.com/knowledge-base/how-to-find-your-uiduserid-and-gidgroupid-in-linux-via-the-command-line/) )
-#### docker-compose.yml
+1. **Create folder structure**:
+   ```bash
+   mkdir -p ~/audiobooks/{inbox,converted,archive,backup}
+   ```
+
+2. **Create docker-compose.yml**:
+   ```yaml
+   version: '3.7'
+   services:
+     auto-m4b:
+       image: darthdobber/auto-m4b:latest
+       container_name: auto-m4b
+       restart: unless-stopped
+       volumes:
+         - ~/audiobooks/inbox:/inbox
+         - ~/audiobooks/converted:/converted
+         - ~/audiobooks/archive:/archive
+         - ~/audiobooks/backup:/backup
+       environment:
+         - PUID=1000  # Run 'id' to find yours
+         - PGID=1000
+         - INBOX_FOLDER=/inbox
+         - CONVERTED_FOLDER=/converted
+         - ARCHIVE_FOLDER=/archive
+         - BACKUP_FOLDER=/backup
+   ```
+
+3. **Start the container**:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Add audiobooks**:
+   ```bash
+   # Copy audiobooks to inbox
+   cp -r /path/to/audiobook ~/audiobooks/inbox/
+
+   # Watch the logs
+   docker-compose logs -f
+   ```
+
+5. **Get converted audiobooks** from `~/audiobooks/converted/`
+
+## Key Features
+
+### 🚀 Easy Setup
+- **Pre-built Docker images** - No manual dependencies
+- **Runtime PUID/PGID** - No image rebuilding for permissions
+- **10-minute setup** - Get started quickly
+
+### 📚 Smart Processing
+- **Auto-detection** - Watches inbox folder continuously
+- **Multiple formats** - MP3, M4A, M4B, OGG, WMA support
+- **Chapter creation** - Automatic chapterization
+- **Metadata preservation** - Keeps tags and cover art
+
+### ⚙️ Configurable
+- **Performance tuning** - Adjust CPU cores, scan frequency
+- **Flexible behavior** - Archive, delete, or keep originals
+- **Filter support** - Process only matching books
+- **Beta features** - Multi-disc flattening, series conversion
+
+### 🛡️ Reliable
+- **Error handling** - Graceful failure management
+- **Backup support** - Optional safety copies
+- **Debug mode** - Detailed logging for troubleshooting
+
+## Documentation
+
+### Getting Started
+- **[Getting Started Guide](docs/getting-started.md)** - Detailed setup instructions
+- **[Configuration Reference](docs/configuration.md)** - All environment variables
+- **[Docker Compose Examples](docs/examples/)** - Example configurations
+
+### Guides & Reference
+- **[Troubleshooting Guide](docs/troubleshooting.md)** - Common issues and solutions
+- **[Architecture Overview](docs/architecture.md)** - System design and internals
+- **[Contributing Guide](docs/contributing.md)** - How to contribute
+
+### API Documentation
+- **[Audiobook API](docs/api/audiobook.md)** - Audiobook class reference
+- **[Config API](docs/api/config.md)** - Configuration management
+- **[Inbox State API](docs/api/inbox-state.md)** - State tracking
+
+## Configuration
+
+Auto-M4B is configured via environment variables. Here are the most important ones:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PUID` | 1000 | User ID for file ownership |
+| `PGID` | 1000 | Group ID for file ownership |
+| `CPU_CORES` | All cores | CPU cores for conversion |
+| `SLEEP_TIME` | 10 | Seconds between inbox scans |
+| `MAX_CHAPTER_LENGTH` | 15,30 | Chapter length (min,max minutes) |
+| `BACKUP` | Y | Create backup copies |
+| `DEBUG` | N | Enable debug logging |
+
+See the [Configuration Reference](docs/configuration.md) for all options.
+
+## Example Configurations
+
+### Basic (Recommended)
+
 ```yaml
+# docker-compose.yml
 version: '3.7'
 services:
   auto-m4b:
-    image: seanap/auto-m4b
+    image: darthdobber/auto-m4b:latest
     container_name: auto-m4b
+    restart: unless-stopped
     volumes:
-      - /path/to/config:/config
-      - /path/to/temp:/temp
+      - ~/audiobooks/inbox:/inbox
+      - ~/audiobooks/converted:/converted
+      - ~/audiobooks/archive:/archive
+      - ~/audiobooks/backup:/backup
     environment:
       - PUID=1000
       - PGID=1000
-      - CPU_CORES=2
-      - SLEEPTIME=1m
-      - MAKE_BACKUP=Y
+      - INBOX_FOLDER=/inbox
+      - CONVERTED_FOLDER=/converted
+      - ARCHIVE_FOLDER=/archive
+      - BACKUP_FOLDER=/backup
 ```
 
-## To Manually Set Chapters:
-1. Put a folder with mp3's in the `/temp/recentlyadded` and let the script process the book like normal
-2. In the output folder ( `/temp/untagged` ) there will be a book folder that includes the recently converted *.m4b and a *.chapters.txt file.
-3. Open the chapters file and edit/add/rename, then save
-4. Move the book folder (which contains the m4b and chapters.txt files) to `/temp/merge`
-5. When the script runs it will re-chapterize the m4b and move it back to `/temp/untagged`
+### Performance-Optimized
 
-## Advanced Options
+```yaml
+environment:
+  - CPU_CORES=8
+  - SLEEP_TIME=5
+  - WORKING_FOLDER=/mnt/nvme/auto-m4b  # Fast SSD
+```
 
-#### Edit the script that is run
-You shouldn't need to change any options, but if you want to you will need to exec into the docker container. By default only vim text editor is installed, you will need to do a `apt-get update && apt-get install nano` if you want to use nano to edit the scipt.  
-* `docker exec -it auto-m4b sh -c 'vi auto-m4b-tool.sh'`  
+### Space-Saving
 
-#### CPU Cores
-The script will automatically use all CPU cores available, to change the amount of cpu cores for the converting change the `--jobs` flag in the m4b-tool command, but do not set it higher than the amount of cores available.  
+```yaml
+environment:
+  - BACKUP=N
+  - ON_COMPLETE=delete
+```
 
-#### Backup Folder
-For those copying files from another source into the `recentlyadded` folder, it might not make sense to waste time copying to the `backup` folder (because they were already copied from somewhere else).  Backing up is enabled by default.  To disable this copy operation, change this line in your compose file: `- MAKE_BACKUP=N`.
+More examples: [docs/examples/](docs/examples/)
 
-#### More Reading
-More m4b-tool options https://github.com/sandreas/m4b-tool#reference
+## Common Use Cases
 
+### Automated Pipeline
 
+```
+Download → inbox/ → Auto-M4B → converted/ → beets-audible → Plex/Audiobookshelf
+```
+
+### Manual Chapter Editing
+
+1. Let Auto-M4B process the book
+2. Edit the `.chapters.txt` file in `converted/`
+3. Move folder back to `inbox/`
+4. Auto-M4B will re-chapterize with your edits
+
+### Torrent Integration
+
+For seeding preservation, configure your torrent client:
+
+```bash
+# On torrent complete:
+cp -r "%F" "/path/to/inbox/"
+```
+
+## Folder Structure
+
+```
+audiobooks/
+├── inbox/          # Add audiobooks here (input)
+├── converted/      # Converted M4B files (output)
+├── archive/        # Original files after conversion
+└── backup/         # Backup copies (optional)
+```
+
+## Troubleshooting
+
+### Container won't start
+- Check logs: `docker-compose logs auto-m4b`
+- Verify folder paths exist and are correct
+- Ensure PUID/PGID match your user
+
+### Permission errors
+- Run `id` to find your UID/GID
+- Update PUID/PGID in docker-compose.yml
+- Restart: `docker-compose restart`
+
+### Books not processing
+- Ensure files are in subfolder: `inbox/BookName/*.mp3`
+- Check supported formats: MP3, M4A, M4B, OGG, WMA
+- Enable debug: `DEBUG=Y` and check logs
+
+See the [Troubleshooting Guide](docs/troubleshooting.md) for more help.
+
+## Project Status
+
+This is an active fork with ongoing improvements:
+
+- ✅ **Phase 1.1**: Pre-built Docker images (COMPLETED)
+- 🚧 **Phase 1.3**: Comprehensive documentation (IN PROGRESS)
+- 📋 **Phase 1.2**: Error recovery & retry logic (PLANNED)
+- 📋 **Phase 1.4**: Configuration validation (PLANNED)
+- 📋 **Phase 1.5**: Progress reporting (PLANNED)
+
+See [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) for details.
+
+## What's Different from brandonscript's Fork?
+
+This fork includes several improvements over [brandonscript/auto-m4b](https://github.com/brandonscript/auto-m4b):
+
+- ✅ **Pre-built Docker images** - No rebuild for PUID/PGID changes
+- ✅ **Comprehensive documentation** - Getting started, configuration, troubleshooting
+- ✅ **Better error handling** - Improved logging and failure management
+- 🚧 **Active development** - Ongoing improvements and features
+
+See [COMPARISON.md](COMPARISON.md) for a detailed comparison with brandonscript's fork.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](docs/contributing.md) for guidelines.
+
+Ways to contribute:
+- Report bugs or suggest features
+- Improve documentation
+- Submit pull requests
+- Test pre-release versions
+
+## Support
+
+- **Documentation**: [docs/README.md](docs/README.md)
+- **Issues**: [GitHub Issues](https://github.com/DarthDobber/auto-m4b/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/DarthDobber/auto-m4b/discussions)
+- **Chat**: [Gitter](https://gitter.im/Audiobook-Server/auto-m4b)
+
+## Credits
+
+- **Original Project**: [seanap/auto-m4b](https://github.com/seanap/auto-m4b)
+- **Previous Fork**: [brandonscript/auto-m4b](https://github.com/brandonscript/auto-m4b)
+- **m4b-tool**: [sandreas/m4b-tool](https://github.com/sandreas/m4b-tool)
+- **Current Fork Maintainer**: [DarthDobber](https://github.com/DarthDobber)
+
+## License
+
+MIT License - See [LICENSE](LICENSE) for details.
+
+---
+
+⭐ If you find this project useful, please consider starring it on GitHub!
