@@ -158,10 +158,10 @@ def env_property(
                 env_value = os.getenv(var_name or key, default)
                 if is_boolish(env_value) or typ == bool:
                     self._env[key] = parse_bool(env_value)
+                elif typ == int or (is_intish(env_value) and typ != float):
+                    self._env[key] = parse_int(env_value)
                 elif is_floatish(env_value) or typ == float:
                     self._env[key] = parse_float(env_value)
-                elif is_intish(env_value) or typ == int:
-                    self._env[key] = parse_int(env_value)
                 elif is_noneish(env_value):
                     if default is not None:
                         self._env[key] = default
