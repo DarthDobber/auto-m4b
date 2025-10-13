@@ -159,7 +159,8 @@ class InboxState(Hasher):
                 if item.status == "failed" and (
                     item.did_change or item.hash_age < cfg.SLEEP_TIME
                 ):
-                    item.set_needs_retry()
+                    # Reset retry count only if files changed (manual fix)
+                    item.set_needs_retry(reset_retry_count=item.did_change)
 
         # remove items that are no longer in the inbox
         for k in gone_keys:
@@ -504,12 +505,12 @@ class InboxState(Hasher):
         else:
             print_debug(f"Item {key_path_or_book} not found in inbox")
 
-    def set_needs_retry(self, key_path_or_book: str | Path | Audiobook):
+    def set_needs_retry(self, key_path_or_book: str | Path | Audiobook, reset_retry_count: bool = False):
         if not self.get(key_path_or_book):
             self.set(key_path_or_book)
 
         if item := self.get(key_path_or_book):
-            item.set_needs_retry()
+            item.set_needs_retry(reset_retry_count=reset_retry_count)
             _sync_failed_to_env()
         else:
             print_debug(f"Item {key_path_or_book} not found in inbox")

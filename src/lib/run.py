@@ -228,9 +228,9 @@ def fail_book(book: Audiobook, reason: str = "unknown"):
     """Adds the book's path to the failed books dict with a value of the last modified date of of the book"""
     from src.lib.retry import categorize_error, format_retry_message, should_retry
 
+    print_notice(f"  [FAIL_BOOK CALLED] {book.basename}")
+
     inbox = InboxState()
-    if book.key in inbox.failed_books:
-        return
 
     # Categorize the error
     error_type = categorize_error(reason)
@@ -240,8 +240,13 @@ def fail_book(book: Audiobook, reason: str = "unknown"):
     item = inbox.get(book.key)
     current_retry_count = item.retry_count if item else 0
 
-    # Set failed with retry metadata
+    print_debug(f"  {book.basename}: Before set_failed - retry_count={current_retry_count}, status={item.status if item else 'None'}")
+
+    # Set failed with retry metadata (this will increment retry_count)
     inbox.set_failed(book.key, reason, is_transient=is_transient)
+
+    item = inbox.get(book.key)
+    print_debug(f"  {book.basename}: After set_failed - retry_count={item.retry_count if item else 'None'}")
 
     # Log the failure
     book.write_log(reason.strip().strip("\n"))
@@ -269,7 +274,7 @@ def fail_book(book: Audiobook, reason: str = "unknown"):
 
         delay_seconds = calculate_backoff_delay(current_retry_count, cfg.RETRY_BASE_DELAY)
         retry_msg = format_retry_message(
-            book.dir_name,
+            book.basename,
             current_retry_count + 1,
             cfg.MAX_RETRIES,
             error_type,
@@ -410,9 +415,10 @@ def check_failed_books():
 
     inbox = InboxState()
     if not inbox.failed_books:
+        print_debug("No failed books to check for retry")
         return
 
-    print_debug(f"Checking {len(inbox.failed_books)} failed book(s) for retry eligibility...")
+    print_notice(f"Checking {len(inbox.failed_books)} failed book(s) for retry eligibility...")
 
     for book_name, item in inbox.failed_books.items():
         failed_book = Audiobook(cfg.inbox_dir / book_name)
@@ -432,10 +438,12 @@ def check_failed_books():
             print_debug(
                 f"  {book_name}: Files changed, clearing retry state for manual retry"
             )
-            inbox.set_needs_retry(book_name)
+            inbox.set_needs_retry(book_name, reset_retry_count=True)
             continue
 
         # Files haven't changed - check if we should auto-retry
+        print_debug(f"  {book_name}: retry_count={item.retry_count}, max={cfg.MAX_RETRIES}, is_transient={item.is_transient_error}")
+
         if not should_retry(
             item.retry_count,
             cfg.MAX_RETRIES,
@@ -444,14 +452,13 @@ def check_failed_books():
         ):
             # Don't retry - either permanent error or max retries exceeded
             error_type = "permanent" if not item.is_transient_error else "transient"
-            print_debug(
-                format_retry_message(
-                    book_name,
-                    item.retry_count,
-                    cfg.MAX_RETRIES,
-                    error_type,
-                )
+            retry_msg = format_retry_message(
+                book_name,
+                item.retry_count,
+                cfg.MAX_RETRIES,
+                error_type,
             )
+            print_notice(f"  {retry_msg}")
             continue
 
         # Check if enough time has passed for retry (exponential backoff)
@@ -461,6 +468,8 @@ def check_failed_books():
             cfg.RETRY_BASE_DELAY,
         )
 
+        print_debug(f"  {book_name}: can_retry={can_retry}, seconds_until={seconds_until}")
+
         if can_retry:
             print_notice(
                 f"  {book_name}: Retrying after backoff (attempt {item.retry_count + 1}/{cfg.MAX_RETRIES})..."
@@ -468,15 +477,14 @@ def check_failed_books():
             inbox.set_needs_retry(book_name)
         else:
             # Still in backoff period
-            print_debug(
-                format_retry_message(
-                    book_name,
-                    item.retry_count,
-                    cfg.MAX_RETRIES,
-                    "transient",
-                    seconds_until,
-                )
+            retry_msg = format_retry_message(
+                book_name,
+                item.retry_count,
+                cfg.MAX_RETRIES,
+                "transient",
+                seconds_until,
             )
+            print_notice(f"  {retry_msg}")
 
 
 def copy_to_working_dir(book: Audiobook):
@@ -496,7 +504,7 @@ def books_to_process() -> tuple[int, Callable[[], None]]:
 
     inbox = InboxState()
 
-    check_failed_books()
+    # Note: check_failed_books() is now called in process_inbox() before this function
 
     # If no books to convert, print, sleep, and exit
     if not inbox.num_books:  # replace 'books_count' with your variable
@@ -1047,6 +1055,9 @@ def process_inbox():
         print_banner()
         inbox.scan(set_ready=True)
 
+    # Check for failed books that need retry (must happen every loop, not just when inbox changes)
+    check_failed_books()
+
     if not audio_files_found():
         print_banner()
         print_debug(
@@ -1055,10 +1066,14 @@ def process_inbox():
         )
         return
 
+    # Check if we have books ready to retry (status="needs_retry")
+    has_retry_books = any(item.status == "needs_retry" for item in inbox._items.values())
+
     if (
         # not inbox.inbox_needs_processing(on_will_scan=process_standalone_files)
         not inbox.inbox_needs_processing()
         and inbox.loop_counter > 1
+        and not has_retry_books  # Don't skip if there are books ready to retry!
     ):
         return
     elif info := books_to_process():

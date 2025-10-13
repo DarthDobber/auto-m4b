@@ -158,6 +158,9 @@ class InboxItem:
 
     def set_failed(self, reason: str, last_updated: float | None = None, is_transient: bool = True):
         from src.lib.inbox_state import _sync_failed_to_env
+        from src.lib.term import print_notice, print_debug
+
+        print_notice(f"  [SET_FAILED CALLED] {self.key} - old retry_count={self.retry_count}")
 
         self._set("failed", reason, last_updated)
         self.is_transient_error = is_transient
@@ -168,16 +171,19 @@ class InboxItem:
         self.retry_count += 1
         self.last_retry_time = time.time()
 
+        print_debug(f"  [SET_FAILED DONE] {self.key} - new retry_count={self.retry_count}")
+
         _sync_failed_to_env()
 
-    def set_needs_retry(self):
+    def set_needs_retry(self, reset_retry_count: bool = False):
         from src.lib.inbox_state import _sync_failed_to_env
 
         self._set("needs_retry")
         # Reset retry tracking when files change (manual fix detected)
-        self.retry_count = 0
-        self.first_failed_time = 0
-        self.last_retry_time = 0
+        if reset_retry_count:
+            self.retry_count = 0
+            self.first_failed_time = 0
+            self.last_retry_time = 0
         _sync_failed_to_env()
 
     def set_ok(self):
