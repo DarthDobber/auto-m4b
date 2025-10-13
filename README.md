@@ -111,6 +111,7 @@ Perfect for integrating with [beets-audible](https://github.com/seanap/beets-aud
 - **[Getting Started Guide](docs/getting-started.md)** - Detailed setup instructions
 - **[Configuration Reference](docs/configuration.md)** - All environment variables
 - **[Docker Compose Examples](docs/examples/)** - Example configurations
+- **[Workflows & Examples](docs/workflows.md)** - Practical workflows for common scenarios
 
 ### Guides & Reference
 - **[Troubleshooting Guide](docs/troubleshooting.md)** - Common issues and solutions

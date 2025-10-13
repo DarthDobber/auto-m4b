@@ -8,6 +8,7 @@ Welcome to the Auto-M4B documentation! This guide will help you get started with
 - **[Getting Started Guide](getting-started.md)** - Quick start guide for new users
 - **[Configuration Reference](configuration.md)** - Complete list of all environment variables and settings
 - **[Docker Compose Examples](examples/)** - Example configurations for common use cases
+- **[Workflows & Examples](workflows.md)** - Practical workflows for common use cases
 
 ### Troubleshooting & Guides
 - **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
