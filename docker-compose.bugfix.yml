@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   auto-m4b:
-    image: darthdobber/auto-m4b:test-bugfix
+    image: darthdobber/auto-m4b:test-cache-fix
     container_name: auto-m4b-failed-mgmt
     restart: unless-stopped
     ports:

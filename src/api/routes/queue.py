@@ -3,6 +3,7 @@
 import time
 from typing import Optional
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from src.api.schemas.v1 import (
     QueueResponse,
@@ -102,7 +103,7 @@ def build_queue_book(item, include_retry_details: bool = True) -> dict:
     return book_data
 
 
-@router.get("/api/v1/queue", response_model=QueueResponse)
+@router.get("/api/v1/queue")
 def get_queue():
     """
     Get all books in the processing queue, including archived failed books.
@@ -155,10 +156,20 @@ def get_queue():
         retrying=len([b for b in books if b.status == "needs_retry"])
     )
 
-    return QueueResponse(
+    data = QueueResponse(
         timestamp=time.time(),
         summary=summary,
         books=books
+    )
+
+    # Return with cache-busting headers
+    return JSONResponse(
+        content=data.model_dump(),
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
     )
 
 

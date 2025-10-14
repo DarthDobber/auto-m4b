@@ -2,6 +2,7 @@
 
 import time
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from src.api.schemas.v1 import (
     StatusResponse,
     Metrics,
@@ -13,7 +14,7 @@ from src.api.schemas.v1 import (
 router = APIRouter()
 
 
-@router.get("/api/v1/status", response_model=StatusResponse)
+@router.get("/api/v1/status")
 def get_status():
     """
     Get system status and conversion metrics snapshot.
@@ -36,7 +37,7 @@ def get_status():
     else:
         status = "idle"
 
-    return StatusResponse(
+    data = StatusResponse(
         timestamp=time.time(),
         uptime_seconds=metrics.session.uptime_seconds,
         status=status,
@@ -71,4 +72,14 @@ def get_status():
                 average_seconds=int(metrics.lifetime_avg_duration)
             )
         )
+    )
+
+    # Return with cache-busting headers
+    return JSONResponse(
+        content=data.model_dump(),
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
     )

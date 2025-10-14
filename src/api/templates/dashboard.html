@@ -280,16 +280,26 @@
 
                 async fetchData() {
                     try {
-                        // Fetch status
-                        const statusRes = await fetch('/api/v1/status');
+                        // Fetch status (disable cache)
+                        const statusRes = await fetch('/api/v1/status', {
+                            cache: 'no-store',
+                            headers: {
+                                'Cache-Control': 'no-cache'
+                            }
+                        });
                         const statusData = await statusRes.json();
 
                         this.status = statusData.status;
                         this.uptime = statusData.uptime_seconds;
                         this.metrics = statusData.metrics;
 
-                        // Fetch queue
-                        const queueRes = await fetch('/api/v1/queue');
+                        // Fetch queue (disable cache)
+                        const queueRes = await fetch('/api/v1/queue', {
+                            cache: 'no-store',
+                            headers: {
+                                'Cache-Control': 'no-cache'
+                            }
+                        });
                         const queueData = await queueRes.json();
 
                         this.queue = queueData;
