@@ -26,6 +26,9 @@ def get_status():
     from src.lib.config import cfg
     from src.lib.inbox_state import InboxState
 
+    # Reload metrics from file to get latest data
+    metrics.load()
+
     inbox = InboxState()
     inbox.scan()  # Ensure fresh data
 

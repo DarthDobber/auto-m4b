@@ -221,6 +221,7 @@ class ConversionMetrics:
             "slowest_conversion_seconds": self.slowest_conversion_seconds,
             "first_run_timestamp": self.first_run_timestamp,
             "last_updated_timestamp": self.last_updated_timestamp,
+            "session": self.session.to_dict(),
             "history": [record.to_dict() for record in self.history],
         }
 
@@ -235,6 +236,11 @@ class ConversionMetrics:
         self.slowest_conversion_seconds = data.get("slowest_conversion_seconds", 0)
         self.first_run_timestamp = data.get("first_run_timestamp", time.time())
         self.last_updated_timestamp = data.get("last_updated_timestamp", time.time())
+
+        # Load session stats
+        session_data = data.get("session", {})
+        if session_data:
+            self.session = SessionStats.from_dict(session_data)
 
         # Load history
         history_data = data.get("history", [])

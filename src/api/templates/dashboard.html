@@ -123,7 +123,7 @@
             </div>
         </div>
 
-        <!-- Failed Books Section -->\
+        <!-- Failed Books Section -->
         <div class="card" x-show="failedBooks.length > 0">
             <div class="card-header">
                 <h2 class="card-title">Failed Books</h2>
@@ -135,7 +135,7 @@
             </p>
 
             <ul class="book-list">
-                <template x-for="book in failedBooks" :key="book.key">
+                <template x-for="(book, index) in failedBooks" :key="book.path || book.key || index">
                     <li class="book-item">
                         <div class="book-name" x-text="book.key"></div>
                         <div class="book-meta">
@@ -197,7 +197,7 @@
 
             <!-- Book List -->
             <ul class="book-list" x-show="queue.books.length > 0">
-                <template x-for="book in queue.books" :key="book.key">
+                <template x-for="(book, index) in queue.books" :key="book.path || book.key || index">
                     <li class="book-item">
                         <div class="book-name" x-text="book.key"></div>
                         <div class="book-meta">
@@ -308,6 +308,11 @@
                         this.failedBooks = queueData.books.filter(b =>
                             b.status === 'failed' || b.status === 'needs_retry' || b.status === 'archived'
                         );
+
+                        // Debug logging
+                        console.log('[Dashboard] Total books:', queueData.books.length);
+                        console.log('[Dashboard] Failed books:', this.failedBooks.length);
+                        console.log('[Dashboard] Failed books array:', this.failedBooks);
 
                         // Update last updated time
                         const now = new Date();
