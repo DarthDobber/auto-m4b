@@ -390,23 +390,66 @@ Transform the auto-m4b fork into a production-ready, user-friendly audiobook con
 **Estimated Effort**: 16-24 hours
 
 ##### 2.1.1 Foundation & Read-Only Dashboard MVP ⭐
-**Status**: NOT STARTED
+**Status**: ✅ COMPLETED (2025-10-13)
 **Priority**: MEDIUM-HIGH
-**Estimated Effort**: 6-8 hours
+**Estimated Effort**: 6-8 hours (Actual: ~6 hours)
 **Prerequisites**:
-- 2.0.1/2.0.2 schema and endpoints implemented
-- Metrics data verified against ConversionMetrics CLI output
+- 2.0.1/2.0.2 schema and endpoints implemented ✅
+- Metrics data verified against ConversionMetrics CLI output ✅
 
 **Tasks**:
-- [ ] Choose and scaffold the core web framework (e.g., FastAPI backend with HTMX/Alpine front-end)
-- [ ] Consume the `/api/status` and `/api/queue` endpoints to render live queue + metrics
-- [ ] Build dashboard layout with auto-refresh and empty-state handling
-- [ ] Document UI architecture, polling cadence, and authentication expectations for contributors
+- [x] Choose and scaffold the core web framework (e.g., FastAPI backend with HTMX/Alpine front-end)
+- [x] Consume the `/api/status` and `/api/queue` endpoints to render live queue + metrics
+- [x] Build dashboard layout with auto-refresh and empty-state handling
+- [x] Document UI architecture, polling cadence, and authentication expectations for contributors
 
 **Success Criteria**:
-- [ ] Dashboard loads in a browser and reflects live conversion queue and current job state
-- [ ] Metrics shown on the dashboard match the CLI `--status` output (totals, failures, uptime)
-- [ ] UI documentation references the API contract and explains how to extend widgets
+- [x] Dashboard loads in a browser and reflects live conversion queue and current job state
+- [x] Metrics shown on the dashboard match the CLI `--status` output (totals, failures, uptime)
+- [x] UI documentation references the API contract and explains how to extend widgets
+
+**Implementation Summary**:
+
+**Architecture Decisions**:
+- FastAPI for unified API + UI serving
+- HTMX + Alpine.js for reactive frontend (no build process)
+- Jinja2 for server-side HTML templating
+- 10-second auto-refresh polling for live updates
+
+**Files Created**:
+- src/api/templates/dashboard.html - Complete dashboard UI with Alpine.js
+- src/api/static/css/dashboard.css - Modern responsive styling (320 lines)
+- docs/DASHBOARD.md - Comprehensive UI architecture documentation
+- docker-compose.dashboard.yml - Test configuration
+
+**Files Modified**:
+- src/api/app.py - Added template rendering, static file serving, dashboard route
+- Pipfile - Added jinja2 and aiofiles dependencies
+
+**Key Features Implemented**:
+- Real-time metrics display (lifetime, session, timing statistics)
+- Live queue monitoring with status badges
+- Auto-refresh every 10 seconds via Alpine.js
+- Empty state handling for clean UX
+- Responsive design for mobile/tablet/desktop
+- Status indicators (idle/processing/waiting)
+- Retry countdown display for failed books
+
+**Testing Results**:
+- ✅ Dashboard HTML loads correctly at http://localhost:8000
+- ✅ Static CSS served properly from /static/css/dashboard.css
+- ✅ API endpoints return valid JSON (/api/v1/status, /api/v1/queue)
+- ✅ Empty queue state displays correctly
+- ✅ Metrics match CLI `--status` output
+- ✅ Auto-refresh polling verified
+
+**Documentation**:
+- Complete architecture overview in docs/DASHBOARD.md
+- Polling cadence explanation (10-second intervals)
+- Guide for extending dashboard with new widgets
+- Troubleshooting section
+- CLI equivalence mapping
+- Security considerations (no auth in Phase 2.1.1)
 
 ##### 2.1.2 Failed Job Management MVP ⭐⭐
 **Status**: NOT STARTED
