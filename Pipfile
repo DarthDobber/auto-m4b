@@ -20,6 +20,8 @@ rapidfuzz = "*"
 bidict = "*"
 regex = "*"
 mutagen = "*"
+fastapi = "*"
+uvicorn = {extras = ["standard"], version = "*"}
 
 [dev-packages]
 ruff = "*"
