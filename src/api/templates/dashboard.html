@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-M4B Dashboard</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+</head>
+<body x-data="dashboard()" x-init="init()">
+    <!-- Header -->
+    <div class="header">
+        <h1>🎧 Auto-M4B Dashboard</h1>
+        <p class="header-subtitle">Real-time audiobook conversion monitoring</p>
+        <div class="header-status">
+            <div class="status-badge" :class="status.toLowerCase()" x-show="status">
+                <span class="status-indicator" :class="status.toLowerCase()"></span>
+                <span x-text="status.charAt(0).toUpperCase() + status.slice(1)"></span>
+            </div>
+            <div class="status-badge">
+                <span x-text="'Uptime: ' + formatDuration(uptime)"></span>
+            </div>
+            <div class="status-badge">
+                <span x-text="'Last updated: ' + lastUpdated"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Metrics Grid -->
+        <div class="dashboard-grid">
+            <!-- Lifetime Stats -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Lifetime Statistics</h2>
+                    <span class="card-icon">📊</span>
+                </div>
+                <div class="stat-grid">
+                    <div class="stat">
+                        <div class="stat-value" x-text="metrics.lifetime.total">0</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value text-success" x-text="metrics.lifetime.successful">0</div>
+                        <div class="stat-label">Successful</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value text-danger" x-text="metrics.lifetime.failed">0</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" x-text="metrics.lifetime.success_rate.toFixed(1) + '%'">0%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <div class="metric-row">
+                        <span class="metric-label">Avg Duration</span>
+                        <span class="metric-value" x-text="formatDuration(metrics.lifetime.avg_duration_seconds)">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Total Processed</span>
+                        <span class="metric-value" x-text="formatBytes(metrics.lifetime.total_bytes_processed)">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session Stats -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Current Session</h2>
+                    <span class="card-icon">⏱️</span>
+                </div>
+                <div class="stat-grid">
+                    <div class="stat">
+                        <div class="stat-value" x-text="metrics.session.total">0</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value text-success" x-text="metrics.session.successful">0</div>
+                        <div class="stat-label">Successful</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value text-danger" x-text="metrics.session.failed">0</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" x-text="metrics.session.success_rate.toFixed(1) + '%'">0%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <div class="metric-row">
+                        <span class="metric-label">Uptime</span>
+                        <span class="metric-value" x-text="formatDuration(metrics.session.uptime_seconds)">-</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Processed</span>
+                        <span class="metric-value" x-text="formatBytes(metrics.session.total_bytes_processed)">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timing Stats -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Timing Statistics</h2>
+                    <span class="card-icon">⚡</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Fastest</span>
+                    <span class="metric-value" x-text="formatDuration(metrics.timing.fastest_seconds)">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Slowest</span>
+                    <span class="metric-value" x-text="formatDuration(metrics.timing.slowest_seconds)">-</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Average</span>
+                    <span class="metric-value" x-text="formatDuration(metrics.timing.average_seconds)">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Queue Section -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Conversion Queue</h2>
+                <span class="card-icon">📚</span>
+            </div>
+
+            <!-- Queue Summary -->
+            <div class="queue-summary" x-show="queue.summary.total > 0">
+                <div class="queue-stat">
+                    <div class="queue-stat-value" x-text="queue.summary.total">0</div>
+                    <div class="queue-stat-label">Total</div>
+                </div>
+                <div class="queue-stat">
+                    <div class="queue-stat-value" x-text="queue.summary.pending">0</div>
+                    <div class="queue-stat-label">Pending</div>
+                </div>
+                <div class="queue-stat">
+                    <div class="queue-stat-value" x-text="queue.summary.processing">0</div>
+                    <div class="queue-stat-label">Processing</div>
+                </div>
+                <div class="queue-stat">
+                    <div class="queue-stat-value text-danger" x-text="queue.summary.failed">0</div>
+                    <div class="queue-stat-label">Failed</div>
+                </div>
+                <div class="queue-stat">
+                    <div class="queue-stat-value text-warning" x-text="queue.summary.retrying">0</div>
+                    <div class="queue-stat-label">Retrying</div>
+                </div>
+            </div>
+
+            <!-- Book List -->
+            <ul class="book-list" x-show="queue.books.length > 0">
+                <template x-for="book in queue.books" :key="book.key">
+                    <li class="book-item">
+                        <div class="book-name" x-text="book.key"></div>
+                        <div class="book-meta">
+                            <span class="book-status" :class="book.status" x-text="book.status"></span>
+                            <span x-text="formatBytes(book.size_bytes)"></span>
+                            <span x-show="book.failed_reason" x-text="'Error: ' + book.failed_reason"></span>
+                            <span x-show="book.retry_countdown_seconds > 0"
+                                  x-text="'Retry in ' + formatDuration(book.retry_countdown_seconds)">
+                            </span>
+                        </div>
+                    </li>
+                </template>
+            </ul>
+
+            <!-- Empty State -->
+            <div class="empty-state" x-show="queue.books.length === 0 && !loading">
+                <div class="empty-state-icon">📭</div>
+                <p class="empty-state-text">No books in queue</p>
+                <p class="text-muted" style="font-size: 0.875rem; margin-top: 0.5rem;">
+                    Add audiobooks to your inbox folder to start processing
+                </p>
+            </div>
+
+            <!-- Loading State -->
+            <div class="loading" x-show="loading">
+                <div class="spinner"></div>
+                <p>Loading queue data...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function dashboard() {
+            return {
+                status: 'idle',
+                uptime: 0,
+                lastUpdated: 'Never',
+                loading: true,
+                metrics: {
+                    lifetime: {
+                        total: 0,
+                        successful: 0,
+                        failed: 0,
+                        success_rate: 0,
+                        avg_duration_seconds: 0,
+                        total_bytes_processed: 0
+                    },
+                    session: {
+                        total: 0,
+                        successful: 0,
+                        failed: 0,
+                        success_rate: 0,
+                        uptime_seconds: 0,
+                        total_bytes_processed: 0
+                    },
+                    timing: {
+                        fastest_seconds: 0,
+                        slowest_seconds: 0,
+                        average_seconds: 0
+                    }
+                },
+                queue: {
+                    summary: {
+                        total: 0,
+                        pending: 0,
+                        processing: 0,
+                        failed: 0,
+                        retrying: 0
+                    },
+                    books: []
+                },
+
+                init() {
+                    this.fetchData();
+                    // Auto-refresh every 10 seconds
+                    setInterval(() => this.fetchData(), 10000);
+                },
+
+                async fetchData() {
+                    try {
+                        // Fetch status
+                        const statusRes = await fetch('/api/v1/status');
+                        const statusData = await statusRes.json();
+
+                        this.status = statusData.status;
+                        this.uptime = statusData.uptime_seconds;
+                        this.metrics = statusData.metrics;
+
+                        // Fetch queue
+                        const queueRes = await fetch('/api/v1/queue');
+                        const queueData = await queueRes.json();
+
+                        this.queue = queueData;
+
+                        // Update last updated time
+                        const now = new Date();
+                        this.lastUpdated = now.toLocaleTimeString();
+
+                        this.loading = false;
+                    } catch (error) {
+                        console.error('Error fetching data:', error);
+                        this.loading = false;
+                    }
+                },
+
+                formatDuration(seconds) {
+                    if (!seconds || seconds === 0) return '0s';
+
+                    const hours = Math.floor(seconds / 3600);
+                    const minutes = Math.floor((seconds % 3600) / 60);
+                    const secs = seconds % 60;
+
+                    if (hours > 0) {
+                        return `${hours}h ${minutes}m ${secs}s`;
+                    } else if (minutes > 0) {
+                        return `${minutes}m ${secs}s`;
+                    } else {
+                        return `${secs}s`;
+                    }
+                },
+
+                formatBytes(bytes) {
+                    if (!bytes || bytes === 0) return '0 B';
+
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+                    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+                }
+            }
+        }
+    </script>
+</body>
+</html>

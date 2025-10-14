@@ -13,12 +13,18 @@ from pathlib import Path
 # Add parent directory to path so we can import src modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 # Import routers
 from src.api.routes import health, status, queue, metrics
+
+# Set up templates and static files
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+static_path = Path(__file__).parent / "static"
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -33,14 +39,17 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json"
 )
 
-# Add CORS middleware (will be configured in Phase 2.0.3)
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Configure in Phase 2.0.3
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["GET"],  # Read-only for Phase 2.0.2
     allow_headers=["*"],
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # Include routers
 app.include_router(health.router, tags=["health"])
@@ -49,13 +58,20 @@ app.include_router(queue.router, tags=["queue"])
 app.include_router(metrics.router, tags=["metrics"])
 
 
-@app.get("/")
-def root():
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    """Dashboard UI"""
+    return templates.TemplateResponse("dashboard.html", {"request": request})
+
+
+@app.get("/api")
+def api_root():
     """API root endpoint"""
     return JSONResponse({
         "name": "Auto-M4B Dashboard API",
         "version": "1.0.0",
         "endpoints": {
+            "dashboard": "/",
             "health": "/api/v1/health",
             "status": "/api/v1/status",
             "queue": "/api/v1/queue",

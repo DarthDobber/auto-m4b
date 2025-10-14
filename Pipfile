@@ -22,6 +22,8 @@ regex = "*"
 mutagen = "*"
 fastapi = "*"
 uvicorn = {extras = ["standard"], version = "*"}
+jinja2 = "*"
+aiofiles = "*"
 
 [dev-packages]
 ruff = "*"
