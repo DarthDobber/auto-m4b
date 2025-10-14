@@ -294,15 +294,35 @@ Here are the most useful settings for getting started:
 
 For a complete list, see the [Configuration Reference](configuration.md).
 
+## Monitoring Your Conversions
+
+### View Metrics
+
+Check your conversion statistics at any time:
+
+```bash
+# View metrics
+docker-compose exec auto-m4b pipenv run python -m src --status
+```
+
+This shows:
+- Lifetime and session statistics
+- Success rates
+- Recent conversions
+- Recent failures with error details
+
+Metrics are automatically displayed on container startup and persisted to `/config/metrics.json` (safe from accidental deletion when moving converted files).
+
 ## Next Steps
 
 Now that you have Auto-M4B running:
 
 1. **Process your audiobook collection**: Copy books to the inbox folder
-2. **Tune performance**: Adjust `CPU_CORES` based on your system
-3. **Set up automation**: Configure your download client to save directly to inbox
-4. **Integrate with taggers**: Use [beets-audible](https://github.com/seanap/beets-audible) to tag and organize converted books
-5. **Import to media server**: Add the `converted/` folder to Plex, Audiobookshelf, etc.
+2. **Monitor conversions**: Check metrics with `--status` to track progress
+3. **Tune performance**: Adjust `CPU_CORES` based on your system
+4. **Set up automation**: Configure your download client to save directly to inbox
+5. **Integrate with taggers**: Use [beets-audible](https://github.com/seanap/beets-audible) to tag and organize converted books
+6. **Import to media server**: Add the `converted/` folder to Plex, Audiobookshelf, etc.
 
 ## Advanced Topics
 

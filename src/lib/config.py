@@ -125,6 +125,12 @@ parser.add_argument(
     action="store_true",
     default=False,
 )
+parser.add_argument(
+    "--status",
+    help="Show conversion metrics and exit",
+    action="store_true",
+    default=False,
+)
 
 T = TypeVar("T", bound=object)
 D = TypeVar("D")
@@ -217,6 +223,7 @@ class AutoM4bArgs:
     match_filter: str | None
     validate: bool
     help_config: bool
+    status: bool
 
     def __init__(
         self,
@@ -227,6 +234,7 @@ class AutoM4bArgs:
         match_filter: str | None = None,
         validate: bool = False,
         help_config: bool = False,
+        status: bool = False,
     ):
         args = parser.parse_known_args()[0]
 
@@ -238,6 +246,7 @@ class AutoM4bArgs:
         # For boolean flags, prioritize argparse result if True (to respect CLI flags)
         self.validate = args.validate if args.validate else validate
         self.help_config = args.help_config if args.help_config else help_config
+        self.status = args.status if args.status else status
 
     def __str__(self) -> str:
         return to_json(self.__dict__)
@@ -307,7 +316,7 @@ class Config:
         # This prevents errors when showing help before config is set up
         try:
             self.load_env(quiet=True)
-        except Exception as e:
+        except Exception:
             # Config not set up yet - that's okay for help/validate commands
             # Silently ignore all config errors during initialization
             pass
@@ -362,6 +371,21 @@ class Config:
         self.clear_cached_attrs()
         self.check_dirs()
         self.check_m4b_tool()
+
+        # Initialize metrics system
+        from src.lib.metrics import metrics
+        metrics.set_metrics_file(self.METRICS_FILE)
+
+        # Display metrics summary on first startup
+        if not pid_exists and not InboxState().loop_counter > 1:
+            if metrics.lifetime_attempted > 0:
+                from src.lib.progress import format_duration
+                print_grey(
+                    f"Lifetime stats: {metrics.lifetime_attempted} conversions "
+                    f"({metrics.lifetime_success_rate:.0f}% success rate, "
+                    f"avg {format_duration(metrics.lifetime_avg_duration)})"
+                )
+                nl()
 
         elapsed_time = time.perf_counter() - start_time
         print_debug(f"Startup took {elapsed_time:.2f}s")
@@ -607,7 +631,13 @@ class Config:
 
     @cached_property
     def GLOBAL_LOG_FILE(self):
-        log_file = self.converted_dir / "auto-m4b.log"
+        # Store log in /config to avoid accidental deletion when users move files from converted/
+        config_dir = Path("/config")
+        if config_dir.exists() and config_dir.is_dir():
+            log_file = config_dir / "auto-m4b.log"
+        else:
+            # Fallback to converted dir if /config not available (e.g., running without Docker)
+            log_file = self.converted_dir / "auto-m4b.log"
         log_file.parent.mkdir(parents=True, exist_ok=True)
         log_file.touch(exist_ok=True)
         return log_file
@@ -621,6 +651,18 @@ class Config:
     def FATAL_FILE(self):
         fatal_file = self.tmp_dir / "fatal.log"
         return fatal_file
+
+    @cached_property
+    def METRICS_FILE(self):
+        # Store metrics in /config to avoid accidental deletion when users move files from converted/
+        config_dir = Path("/config")
+        if config_dir.exists() and config_dir.is_dir():
+            metrics_file = config_dir / "metrics.json"
+        else:
+            # Fallback to converted dir if /config not available (e.g., running without Docker)
+            metrics_file = self.converted_dir / "metrics.json"
+        metrics_file.parent.mkdir(parents=True, exist_ok=True)
+        return metrics_file
 
     def clean(self):
         from src.lib.fs_utils import clean_dir

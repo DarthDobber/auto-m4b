@@ -102,6 +102,7 @@ Perfect for integrating with [beets-audible](https://github.com/seanap/beets-aud
 ### 🛡️ Reliable
 - **Error handling** - Graceful failure management with automatic retries
 - **Failed book tracking** - Automatically moves failed books to dedicated folder with recovery instructions
+- **Metrics tracking** - Track conversion history, success rates, and timing statistics
 - **Backup support** - Optional safety copies
 - **Debug mode** - Detailed logging for troubleshooting
 
@@ -139,9 +140,61 @@ Auto-M4B is configured via environment variables. Here are the most important on
 
 See the [Configuration Reference](docs/configuration.md) for all options.
 
+### Conversion Metrics & Status
+
+Auto-M4B tracks conversion statistics and displays metrics on startup:
+
+#### View Conversion Metrics
+```bash
+# Using Docker
+docker-compose exec auto-m4b pipenv run python -m src --status
+
+# Using python directly
+python -m src --status
+```
+
+The `--status` command shows:
+- **Lifetime Statistics**: Total conversions, success rate, average duration, total data processed
+- **Session Statistics**: Current uptime, conversions this session, success rate
+- **Timing Stats**: Fastest and slowest conversions
+- **Recent Conversions**: Last 10 conversions with status and timing
+- **Recent Failures**: Last 5 failures with error details
+
+**Example output**:
+```
+=== Auto-M4B Conversion Metrics ===
+
+📊 Lifetime Statistics:
+  Total Conversions: 47
+  Successful:        45
+  Failed:            2
+  Success Rate:      95.7%
+  Average Duration:  12m 34s
+  Total Data:        8.3 GB
+
+📈 Current Session:
+  Uptime:            2h 15m
+  Conversions:       3
+  Successful:        3
+  Failed:            0
+  Success Rate:      100.0%
+  Total Data:        654 MB
+
+⏱️  Timing:
+  Fastest: 3m 12s
+  Slowest: 28m 45s
+
+📚 Recent Conversions:
+  ✓ Harry Potter Book 1 - 8m 23s - 2025-10-13 14:30
+  ✓ The Hobbit - 12m 15s - 2025-10-13 12:10
+  ✗ Broken Book - 2m 03s - 2025-10-13 09:45
+```
+
+Metrics are automatically displayed on container startup and are persisted to `/config/metrics.json` (or `converted/metrics.json` if running without Docker).
+
 ### Configuration Validation & Help
 
-Auto-M4B now includes built-in configuration validation and help commands:
+Auto-M4B includes built-in configuration validation and help commands:
 
 #### Show All Configuration Options
 ```bash
@@ -308,9 +361,9 @@ This is an active fork with ongoing improvements:
 
 - ✅ **Phase 1.1**: Pre-built Docker images (COMPLETED)
 - ✅ **Phase 1.2**: Error recovery & retry logic (COMPLETED)
-- 🚧 **Phase 1.3**: Comprehensive documentation (IN PROGRESS)
-- 📋 **Phase 1.4**: Configuration validation (PLANNED)
-- 📋 **Phase 1.5**: Progress reporting (PLANNED)
+- ✅ **Phase 1.3**: Comprehensive documentation (COMPLETED)
+- ✅ **Phase 1.4**: Configuration validation (COMPLETED)
+- ✅ **Phase 1.5**: Progress reporting & metrics (COMPLETED)
 
 See [PROJECT_ROADMAP.md](PROJECT_ROADMAP.md) for details.
 
@@ -320,6 +373,8 @@ This fork includes several improvements over [brandonscript/auto-m4b](https://gi
 
 - ✅ **Automatic retry logic** - Transient errors retry automatically with exponential backoff
 - ✅ **Failed book management** - Failed books moved to dedicated folder with recovery instructions
+- ✅ **Conversion metrics** - Track success rates, timing statistics, and conversion history
+- ✅ **Configuration validation** - Validate config before starting with `--validate` command
 - ✅ **Comprehensive documentation** - Getting started, configuration, troubleshooting guides
 - ✅ **Better error handling** - Improved logging and failure categorization
 - 🚧 **Active development** - Ongoing improvements and features

@@ -45,6 +45,74 @@ def app(**kwargs):
         Config.print_config_help()
         sys.exit(0)
 
+    # Handle --status flag
+    if args.status:
+        from src.lib.config import cfg
+        from src.lib.metrics import metrics
+        from src.lib.progress import format_duration, format_bytes
+
+        # Initialize metrics
+        try:
+            with cfg.load_env(args, quiet=True):
+                pass
+            metrics.set_metrics_file(cfg.METRICS_FILE)
+        except:
+            pass  # Use default metrics if config fails
+
+        # Display metrics
+        print("\n=== Auto-M4B Conversion Metrics ===\n")
+
+        # Lifetime statistics
+        print("📊 Lifetime Statistics:")
+        print(f"  Total Conversions: {metrics.lifetime_attempted}")
+        print(f"  Successful:        {metrics.lifetime_successful}")
+        print(f"  Failed:            {metrics.lifetime_failed}")
+        if metrics.lifetime_attempted > 0:
+            print(f"  Success Rate:      {metrics.lifetime_success_rate:.1f}%")
+            print(f"  Average Duration:  {format_duration(metrics.lifetime_avg_duration)}")
+            print(f"  Total Data:        {format_bytes(metrics.lifetime_bytes_processed)}")
+        print()
+
+        # Session statistics
+        if metrics.session.conversions_attempted > 0:
+            print("📈 Current Session:")
+            print(f"  Uptime:            {format_duration(metrics.session.uptime_seconds)}")
+            print(f"  Conversions:       {metrics.session.conversions_attempted}")
+            print(f"  Successful:        {metrics.session.conversions_successful}")
+            print(f"  Failed:            {metrics.session.conversions_failed}")
+            print(f"  Success Rate:      {metrics.session.success_rate:.1f}%")
+            print(f"  Total Data:        {format_bytes(metrics.session.total_bytes_processed)}")
+            print()
+
+        # Timing stats
+        if metrics.fastest_conversion_seconds > 0:
+            print("⏱️  Timing:")
+            print(f"  Fastest: {format_duration(metrics.fastest_conversion_seconds)}")
+            print(f"  Slowest: {format_duration(metrics.slowest_conversion_seconds)}")
+            print()
+
+        # Recent conversions
+        recent = metrics.get_recent_conversions(limit=10)
+        if recent:
+            print("📚 Recent Conversions:")
+            for record in recent:
+                status_icon = "✓" if record.status == "success" else "✗"
+                duration_str = format_duration(record.duration_seconds)
+                print(f"  {status_icon} {record.book_name} - {duration_str} - {record.timestamp_str}")
+            print()
+
+        # Recent failures
+        failures = metrics.get_recent_failures(limit=5)
+        if failures:
+            print("❌ Recent Failures:")
+            for record in failures:
+                print(f"  • {record.book_name} - {record.timestamp_str}")
+                if record.error_message:
+                    print(f"    Error: {record.error_message[:100]}")
+            print()
+
+        sys.exit(0)
+
     # Handle --validate flag (with error handler for config issues)
     if args.validate:
         from src.lib.term import print_green, print_red

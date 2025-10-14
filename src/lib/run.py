@@ -761,6 +761,8 @@ def print_book_info(book: "Audiobook"):
 
 
 def convert_book(book: Audiobook):
+    from src.lib.metrics import metrics
+
     starttime = time.time()
     m4btool = M4bTool(book)
 
@@ -842,6 +844,17 @@ def convert_book(book: Audiobook):
         stderr = proc.stderr.decode() if proc.stderr else ""
         fail_book(book, reason=f"{err}\n{stderr}")
         log_global_results(book, "FAILED", 0)
+
+        # Record failed conversion in metrics
+        duration = int(time.time() - starttime)
+        metrics.record_conversion(
+            book_name=str(book),
+            status="failed",
+            duration_seconds=duration,
+            file_size_bytes=0,
+            error_message=err,
+        )
+
         return False
 
     # TODO: No longer need to write successful logs
@@ -1093,6 +1106,16 @@ def process_book(b: int, item: InboxItem):
 
     if (elapsedtime := convert_book(book)) is False:
         return b
+
+    # Record successful conversion in metrics
+    from src.lib.metrics import metrics
+    file_size = book.build_file.stat().st_size if book.build_file.exists() else 0
+    metrics.record_conversion(
+        book_name=str(book),
+        status="success",
+        duration_seconds=elapsedtime,
+        file_size_bytes=file_size,
+    )
 
     book.converted_dir.mkdir(parents=True, exist_ok=True)
 
