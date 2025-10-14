@@ -349,19 +349,40 @@ Transform the auto-m4b fork into a production-ready, user-friendly audiobook con
 **Testing Status**: Implementation complete, runtime testing deferred to Phase 2.0.3 Docker integration
 
 ##### 2.0.3 Endpoint Access & Packaging ⭐
-**Status**: NOT STARTED
+**Status**: ✅ COMPLETED
 **Priority**: MEDIUM
-**Estimated Effort**: 2-3 hours
+**Actual Effort**: 1.5 hours
 
 **Tasks**:
-- [ ] Wire the API app into container startup (docker-compose.local.yml, Dockerfile, entrypoint updates)
-- [ ] Provide configuration for binding host/port and optional auth stubs for later phases
-- [ ] Document how to run the API locally and in Docker for dashboard development
+- [x] Wire the API app into container startup (docker-compose.local.yml, Dockerfile, entrypoint updates)
+- [x] Provide configuration for binding host/port and optional auth stubs for later phases
+- [x] Document how to run the API locally and in Docker for dashboard development
 
 **Success Criteria**:
-- [ ] API service starts automatically with the existing Docker workflow
-- [ ] Local developers can run `pipenv run python -m src.api` (or equivalent) outside Docker
-- [ ] Documentation in docs/api/dashboard.md includes setup instructions and endpoint list
+- [x] API service starts automatically with the existing Docker workflow
+- [x] Local developers can run `pipenv run python -m src.api` (or equivalent) outside Docker
+- [x] Documentation in docs/api/dashboard.md includes setup instructions and endpoint list
+
+**Implementation Details**:
+- Modified entrypoint.sh to launch uvicorn in background when API_ENABLED=Y
+- Added API configuration to docker-compose.local.yml (port 8000 exposed)
+- Environment variables: API_ENABLED, API_HOST, API_PORT
+- API runs alongside main conversion loop without conflicts
+
+**Testing Results** (see docs/api/TEST-RESULTS.md):
+- ✅ All 5 endpoints tested successfully
+- ✅ Health, status, queue, metrics endpoints return valid responses
+- ✅ OpenAPI documentation accessible at /docs and /redoc
+- ✅ Performance within targets (< 100ms for most endpoints)
+- ✅ Integration test: API + conversion loop running simultaneously
+- ✅ Real data from running Auto-M4B instance validated
+
+**Files Modified**:
+- entrypoint.sh - Added API startup logic
+- docker-compose.local.yml - Exposed port 8000, added API env vars
+
+**Files Created**:
+- docs/api/TEST-RESULTS.md - Comprehensive test report
 
 #### 2.1 Web UI / Dashboard ⭐⭐⭐⭐
 **Status**: NOT STARTED

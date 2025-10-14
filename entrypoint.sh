@@ -32,5 +32,16 @@ chown -R $PUID:$PGID /auto-m4b
 USERNAME=$(getent passwd $PUID | cut -d: -f1)
 
 echo "Executing command as user $USERNAME (UID $PUID)"
+
+# Start API server if enabled
+if [ "${API_ENABLED:-N}" = "Y" ]; then
+    API_HOST="${API_HOST:-0.0.0.0}"
+    API_PORT="${API_PORT:-8000}"
+    echo "Starting API server on $API_HOST:$API_PORT"
+    gosu $USERNAME pipenv run uvicorn src.api.app:app --host "$API_HOST" --port "$API_PORT" &
+    API_PID=$!
+    echo "API server started with PID $API_PID"
+fi
+
 # Run the app as the created user
 exec gosu $USERNAME "$@"
