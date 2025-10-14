@@ -139,9 +139,10 @@
                     <li class="book-item">
                         <div class="book-name" x-text="book.key"></div>
                         <div class="book-meta">
-                            <span class="book-status failed" x-text="book.status"></span>
+                            <span class="book-status" :class="book.status" x-text="book.status"></span>
                             <span x-text="formatBytes(book.size_bytes)"></span>
                             <span class="text-danger" x-text="'Retry ' + book.retry_count + '/' + book.max_retries"></span>
+                            <span x-show="book.is_archived" class="text-muted" x-text="'Archived: ' + book.timestamp_str"></span>
                         </div>
                         <div class="book-error" x-show="book.failed_reason">
                             <strong>Error:</strong> <span x-text="book.failed_reason"></span>
@@ -151,7 +152,10 @@
                                 class="btn-requeue"
                                 @click="requeueBook(book.key)"
                                 :disabled="requeueInProgress === book.key">
-                                <span x-show="requeueInProgress !== book.key">🔄 Re-queue</span>
+                                <span x-show="requeueInProgress !== book.key">
+                                    <span x-show="book.is_archived">📥 Restore & Re-queue</span>
+                                    <span x-show="!book.is_archived">🔄 Re-queue</span>
+                                </span>
                                 <span x-show="requeueInProgress === book.key">⏳ Re-queueing...</span>
                             </button>
                         </div>
@@ -290,9 +294,9 @@
 
                         this.queue = queueData;
 
-                        // Extract failed books
+                        // Extract failed books (including archived)
                         this.failedBooks = queueData.books.filter(b =>
-                            b.status === 'failed' || b.status === 'needs_retry'
+                            b.status === 'failed' || b.status === 'needs_retry' || b.status === 'archived'
                         );
 
                         // Update last updated time

@@ -60,7 +60,7 @@ class SeriesInfo(BaseModel):
 class QueueBook(BaseModel):
     key: str = Field(..., description="Book identifier (relative path)")
     path: str = Field(..., description="Full path to book")
-    status: str = Field(..., description="Book status: new, ok, needs_retry, failed, gone")
+    status: str = Field(..., description="Book status: new, ok, needs_retry, failed, gone, archived")
     size_bytes: int = Field(..., description="Total size in bytes")
     last_updated: float = Field(..., description="Last modified timestamp")
     hash: str = Field(..., description="Content hash for change detection")
@@ -73,6 +73,9 @@ class QueueBook(BaseModel):
     next_retry_at: Optional[float] = Field(None, description="Next retry timestamp")
     retry_countdown_seconds: Optional[int] = Field(None, description="Seconds until retry")
     series_info: Optional[SeriesInfo] = Field(None, description="Series metadata if applicable")
+    is_archived: Optional[bool] = Field(False, description="Whether book is in failed folder")
+    timestamp_str: Optional[str] = Field(None, description="Human-readable timestamp for archived books")
+    can_requeue: Optional[bool] = Field(False, description="Whether book can be re-queued")
 
 
 class QueueSummary(BaseModel):

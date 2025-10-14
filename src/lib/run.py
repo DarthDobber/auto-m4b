@@ -224,7 +224,7 @@ def audio_files_found():
     return InboxState().num_audio_files_deep > 0
 
 
-def fail_book(book: Audiobook, reason: str = "unknown"):
+def fail_book(book: Audiobook, reason: str = "unknown", duration_seconds: int = 0):
     """Adds the book's path to the failed books dict with a value of the last modified date of of the book"""
     from src.lib.retry import categorize_error, format_retry_message, should_retry
 
@@ -262,13 +262,28 @@ def fail_book(book: Audiobook, reason: str = "unknown"):
             # move build dir log to inbox dir
             shutil.move(build_log, book.log_file)
 
-    # Print retry information
-    if should_retry(
+    # Determine if this is the final failure (no more retries)
+    will_retry = should_retry(
         current_retry_count + 1,
         cfg.MAX_RETRIES,
         is_transient,
         cfg.RETRY_TRANSIENT_ERRORS,
-    ):
+    )
+
+    # Record metrics for final failure (when max retries exceeded)
+    if not will_retry:
+        from src.lib.metrics import metrics
+        metrics.record_conversion(
+            book_name=str(book),
+            status="failed",
+            duration_seconds=duration_seconds if duration_seconds > 0 else 0,
+            file_size_bytes=0,
+            error_message=reason,
+        )
+        print_debug(f"  {book.basename}: Recorded failed conversion in metrics")
+
+    # Print retry information
+    if will_retry:
         from src.lib.retry import calculate_backoff_delay
         from src.lib.formatters import human_elapsed_time
 
@@ -842,19 +857,10 @@ def convert_book(book: Audiobook):
 
     if err:
         stderr = proc.stderr.decode() if proc.stderr else ""
-        fail_book(book, reason=f"{err}\n{stderr}")
-        log_global_results(book, "FAILED", 0)
-
-        # Record failed conversion in metrics
         duration = int(time.time() - starttime)
-        metrics.record_conversion(
-            book_name=str(book),
-            status="failed",
-            duration_seconds=duration,
-            file_size_bytes=0,
-            error_message=err,
-        )
-
+        fail_book(book, reason=f"{err}\n{stderr}", duration_seconds=duration)
+        log_global_results(book, "FAILED", 0)
+        # Note: metrics recording now handled in fail_book() for final failures
         return False
 
     # TODO: No longer need to write successful logs
@@ -1037,6 +1043,24 @@ def archive_inbox_book(book: Audiobook):
 
 
 def process_book(b: int, item: InboxItem):
+    """Process a single book, with error handling for metrics recording"""
+    import time
+    starttime = time.time()
+
+    try:
+        return _process_book_inner(b, item, starttime)
+    except Exception as e:
+        # Catch any unhandled exceptions and ensure metrics are recorded
+        book = item.to_audiobook()
+        duration = int(time.time() - starttime)
+        error_msg = f"Unexpected error during processing: {str(e)}"
+        print_error(error_msg)
+        fail_book(book, reason=error_msg, duration_seconds=duration)
+        return b
+
+
+def _process_book_inner(b: int, item: InboxItem, starttime: float):
+    """Inner process_book logic (extracted for error handling)"""
 
     inbox = InboxState()
     book = item.to_audiobook()

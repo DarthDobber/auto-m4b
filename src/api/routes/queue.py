@@ -105,20 +105,46 @@ def build_queue_book(item, include_retry_details: bool = True) -> dict:
 @router.get("/api/v1/queue", response_model=QueueResponse)
 def get_queue():
     """
-    Get all books in the processing queue.
+    Get all books in the processing queue, including archived failed books.
 
-    Returns summary counts and detailed list of all books
-    with their current status and retry metadata.
+    Returns summary counts and detailed list of:
+    - Books currently in inbox (any status)
+    - Books moved to failed folder (archived)
     """
     from src.lib.inbox_state import InboxState
+    from src.lib.failed_books import scan_failed_folder
+    from src.lib.config import cfg
 
     inbox = InboxState()
     inbox.scan()  # Ensure fresh data
 
     books = []
+
+    # Add books from inbox
     for item in inbox.matched_books.values():
         book_data = build_queue_book(item)
         books.append(QueueBook(**book_data))
+
+    # Add archived books from failed folder
+    try:
+        failed_books = scan_failed_folder(cfg.failed_dir)
+        for failed_book in failed_books:
+            book_data = failed_book.to_dict()
+            # Add fields required by QueueBook schema
+            book_data.update({
+                "hash": "",
+                "is_filtered": False,
+                "series_info": None,
+                "last_updated": failed_book.failed_at,
+                "max_retries": cfg.MAX_RETRIES,
+                "is_transient": True,  # Assume transient if archived
+                "will_retry": False,  # Archived books won't auto-retry
+                "next_retry_at": None,
+                "retry_countdown_seconds": 0
+            })
+            books.append(QueueBook(**book_data))
+    except Exception as e:
+        print(f"Warning: Could not scan failed folder: {e}")
 
     # Calculate summary
     summary = QueueSummary(

@@ -237,6 +237,7 @@ body {
 .book-status.pending { background: #dbeafe; color: #1e40af; }
 .book-status.failed { background: #fee2e2; color: #991b1b; }
 .book-status.retrying { background: #fed7aa; color: #92400e; }
+.book-status.archived { background: #e5e7eb; color: #374151; }
 
 /* Empty State */
 .empty-state {

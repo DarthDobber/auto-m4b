@@ -1,0 +1,35 @@
+version: '3.7'
+
+services:
+  auto-m4b:
+    image: darthdobber/auto-m4b:test-bugfix
+    container_name: auto-m4b-failed-mgmt
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /home/robby/Scripts/Projects/auto-m4b-compare/auto-m4b-data/config:/config:rw
+      - /home/robby/Scripts/Projects/auto-m4b-compare/auto-m4b-data:/temp:rw
+    environment:
+      - PUID=1026
+      - PGID=1000
+      - INBOX_FOLDER=/temp/inbox
+      - CONVERTED_FOLDER=/temp/converted
+      - ARCHIVE_FOLDER=/temp/archive
+      - BACKUP_FOLDER=/temp/backup
+      - FAILED_FOLDER=/temp/failed
+      - WORKING_FOLDER=/temp/working
+      - BACKUP=N
+      - OVERWRITE_EXISTING=Y
+      - FLATTEN_MULTI_DISC_BOOKS=Y
+      - CONVERT_SERIES=Y
+      - DEBUG=Y
+      - MAX_RETRIES=3
+      - RETRY_TRANSIENT_ERRORS=Y
+      - RETRY_BASE_DELAY=60
+      - API_ENABLED=Y
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - TZ=America/Chicago
+      - LANG=en_US.UTF-8
+

@@ -103,19 +103,26 @@ Three cards displaying conversion statistics:
 
 ### 3. Failed Books Section (Phase 2.1.2)
 Dedicated section for managing failed conversions:
-- Displays only books with status `failed` or `needs_retry`
+- Displays books with status `failed`, `needs_retry`, or `archived`
+- **Archived books**: Books moved to failed folder after max retries exceeded
 - Shows error message for each failed book
-- Displays retry count (e.g., "Retry 2/3")
+- Displays retry count (e.g., "Retry 3/3")
+- Shows archive timestamp for archived books
 - **Re-queue button** - Manually retry a failed book
-  - Resets book status to "ok" (ready for processing)
-  - Resets retry counter to 0
-  - Clears failed reason
+  - For inbox books: Resets status to "ok", clears retry counter
+  - For archived books: "Restore & Re-queue" to move back to inbox
   - Book will be picked up in next processing loop
 
 **Use cases**:
 - Retry after fixing underlying issue (disk space, permissions)
 - Force retry of permanently failed book after investigation
+- Restore archived books from failed folder
 - Reset retry count to give book more attempts
+
+**Bug Fixes**:
+- Fixed metrics recording for early-stage failures (ffprobe validation)
+- All failures now recorded in metrics, not just merge failures
+- Archived books from failed folder now visible in dashboard
 
 ### 4. Queue Section
 - Queue summary (total, pending, processing, failed, retrying)
