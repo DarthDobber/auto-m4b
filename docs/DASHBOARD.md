@@ -101,7 +101,23 @@ Three cards displaying conversion statistics:
 - Slowest conversion
 - Average conversion time
 
-### 3. Queue Section
+### 3. Failed Books Section (Phase 2.1.2)
+Dedicated section for managing failed conversions:
+- Displays only books with status `failed` or `needs_retry`
+- Shows error message for each failed book
+- Displays retry count (e.g., "Retry 2/3")
+- **Re-queue button** - Manually retry a failed book
+  - Resets book status to "ok" (ready for processing)
+  - Resets retry counter to 0
+  - Clears failed reason
+  - Book will be picked up in next processing loop
+
+**Use cases**:
+- Retry after fixing underlying issue (disk space, permissions)
+- Force retry of permanently failed book after investigation
+- Reset retry count to give book more attempts
+
+### 4. Queue Section
 - Queue summary (total, pending, processing, failed, retrying)
 - Book list with:
   - Book name
@@ -110,7 +126,7 @@ Three cards displaying conversion statistics:
   - Error messages (if failed)
   - Retry countdown (if retrying)
 
-### 4. Empty State
+### 5. Empty State
 Displayed when queue is empty with helpful message about adding books to inbox.
 
 ## Extending the Dashboard
@@ -224,7 +240,7 @@ Access at `http://localhost:8000`
 
 ## API Endpoints
 
-The dashboard consumes these read-only endpoints:
+The dashboard consumes these endpoints:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -233,8 +249,47 @@ The dashboard consumes these read-only endpoints:
 | `/api/v1/status` | GET | System status + metrics |
 | `/api/v1/queue` | GET | Queue summary + books |
 | `/api/v1/queue/{book_key}` | GET | Individual book details |
+| `/api/v1/queue/{book_key}/requeue` | POST | Re-queue a failed book (Phase 2.1.2) |
 | `/api/v1/metrics/recent` | GET | Recent conversion history |
 | `/docs` | GET | Interactive API documentation |
+
+### Re-queue Endpoint (Phase 2.1.2)
+
+**POST `/api/v1/queue/{book_key}/requeue`**
+
+Re-queues a failed book for retry by resetting its status to "ok".
+
+**Request Body**:
+```json
+{
+  "reset_retry_count": true
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Book 'Harry Potter Book 1' has been re-queued for processing.",
+  "book_key": "Harry Potter Book 1",
+  "new_status": "ok",
+  "retry_count": 0
+}
+```
+
+**Requirements**:
+- Book must have status "failed" or "needs_retry"
+- Book must still exist in inbox folder
+
+**Effects**:
+- Sets book status to "ok" (ready for processing)
+- Optionally resets retry_count to 0 (default)
+- Clears failed_reason
+- Updates last_updated timestamp
+
+**Error Responses**:
+- `404` - Book not found in queue
+- `400` - Book status is not "failed" or "needs_retry"
 
 ## Browser Compatibility
 

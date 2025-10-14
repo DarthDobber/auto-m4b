@@ -1,8 +1,9 @@
-"""Queue endpoints for viewing book processing queue"""
+"""Queue endpoints for viewing and managing book processing queue"""
 
 import time
 from typing import Optional
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from src.api.schemas.v1 import (
     QueueResponse,
     QueueSummary,
@@ -14,6 +15,20 @@ from src.api.schemas.v1 import (
 )
 
 router = APIRouter()
+
+
+class RequeueRequest(BaseModel):
+    """Request body for re-queueing a failed book"""
+    reset_retry_count: bool = True
+
+
+class RequeueResponse(BaseModel):
+    """Response for re-queue operation"""
+    success: bool
+    message: str
+    book_key: str
+    new_status: str
+    retry_count: int
 
 
 def build_series_info(item) -> Optional[SeriesInfo]:
@@ -168,4 +183,82 @@ def get_queue_book(book_key: str):
     return QueueBookDetailResponse(
         timestamp=time.time(),
         book=QueueBookDetail(**book_data)
+    )
+
+
+@router.post("/api/v1/queue/{book_key:path}/requeue", response_model=RequeueResponse)
+def requeue_failed_book(book_key: str, request: RequeueRequest):
+    """
+    Re-queue a failed book for retry.
+
+    This endpoint allows operators to manually reset a failed book's status
+    to "ok" so it will be picked up in the next processing loop.
+
+    Optionally resets the retry counter to 0 (default behavior).
+
+    **Use cases:**
+    - Manually retry after fixing underlying issue (disk space, permissions, etc.)
+    - Force retry of a permanently failed book after investigation
+    - Reset retry count to give book more attempts
+
+    **Requirements:**
+    - Book must have status "failed" or "needs_retry"
+    - Book must still exist in inbox folder
+
+    **Effects:**
+    - Sets book status to "ok" (ready for processing)
+    - Optionally resets retry_count to 0
+    - Clears failed_reason
+    - Updates last_updated timestamp
+    """
+    from src.lib.inbox_state import InboxState
+
+    inbox = InboxState()
+    inbox.scan()  # Ensure fresh data
+
+    item = inbox.get(book_key)
+
+    if not item:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "book_not_found",
+                "message": f"Book '{book_key}' not found in queue.",
+                "suggestion": "Book may have been moved or deleted. Refresh queue via GET /api/v1/queue"
+            }
+        )
+
+    # Verify book is actually failed
+    if item.status not in ["failed", "needs_retry"]:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "book_not_failed",
+                "message": f"Book '{book_key}' has status '{item.status}' and cannot be re-queued.",
+                "current_status": item.status,
+                "suggestion": "Only books with status 'failed' or 'needs_retry' can be re-queued."
+            }
+        )
+
+    # Reset status to "ok" (ready for processing)
+    item.status = "ok"
+    item.failed_reason = ""
+
+    # Reset retry count if requested
+    if request.reset_retry_count:
+        item.retry_count = 0
+        item.first_failed_time = 0
+
+    # Update last_updated to current time
+    item._last_updated = time.time()
+
+    # Save changes to inbox state
+    inbox.set(item)
+
+    return RequeueResponse(
+        success=True,
+        message=f"Book '{book_key}' has been re-queued for processing.",
+        book_key=book_key,
+        new_status="ok",
+        retry_count=item.retry_count
     )

@@ -123,6 +123,43 @@
             </div>
         </div>
 
+        <!-- Failed Books Section -->\
+        <div class="card" x-show="failedBooks.length > 0">
+            <div class="card-header">
+                <h2 class="card-title">Failed Books</h2>
+                <span class="card-icon">⚠️</span>
+            </div>
+
+            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                These books failed to convert. Click "Re-queue" to retry after resolving the issue.
+            </p>
+
+            <ul class="book-list">
+                <template x-for="book in failedBooks" :key="book.key">
+                    <li class="book-item">
+                        <div class="book-name" x-text="book.key"></div>
+                        <div class="book-meta">
+                            <span class="book-status failed" x-text="book.status"></span>
+                            <span x-text="formatBytes(book.size_bytes)"></span>
+                            <span class="text-danger" x-text="'Retry ' + book.retry_count + '/' + book.max_retries"></span>
+                        </div>
+                        <div class="book-error" x-show="book.failed_reason">
+                            <strong>Error:</strong> <span x-text="book.failed_reason"></span>
+                        </div>
+                        <div class="book-actions">
+                            <button
+                                class="btn-requeue"
+                                @click="requeueBook(book.key)"
+                                :disabled="requeueInProgress === book.key">
+                                <span x-show="requeueInProgress !== book.key">🔄 Re-queue</span>
+                                <span x-show="requeueInProgress === book.key">⏳ Re-queueing...</span>
+                            </button>
+                        </div>
+                    </li>
+                </template>
+            </ul>
+        </div>
+
         <!-- Queue Section -->
         <div class="card">
             <div class="card-header">
@@ -195,6 +232,7 @@
                 uptime: 0,
                 lastUpdated: 'Never',
                 loading: true,
+                requeueInProgress: null,
                 metrics: {
                     lifetime: {
                         total: 0,
@@ -228,6 +266,7 @@
                     },
                     books: []
                 },
+                failedBooks: [],
 
                 init() {
                     this.fetchData();
@@ -251,6 +290,11 @@
 
                         this.queue = queueData;
 
+                        // Extract failed books
+                        this.failedBooks = queueData.books.filter(b =>
+                            b.status === 'failed' || b.status === 'needs_retry'
+                        );
+
                         // Update last updated time
                         const now = new Date();
                         this.lastUpdated = now.toLocaleTimeString();
@@ -259,6 +303,47 @@
                     } catch (error) {
                         console.error('Error fetching data:', error);
                         this.loading = false;
+                    }
+                },
+
+                async requeueBook(bookKey) {
+                    if (this.requeueInProgress) {
+                        return; // Prevent multiple concurrent requeues
+                    }
+
+                    this.requeueInProgress = bookKey;
+
+                    try {
+                        const response = await fetch(`/api/v1/queue/${encodeURIComponent(bookKey)}/requeue`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                reset_retry_count: true
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const error = await response.json();
+                            alert(`Failed to re-queue: ${error.detail?.message || error.message || 'Unknown error'}`);
+                            this.requeueInProgress = null;
+                            return;
+                        }
+
+                        const result = await response.json();
+
+                        // Show success message
+                        alert(`✓ ${result.message}\n\nThe book will be processed in the next conversion loop.`);
+
+                        // Refresh data immediately
+                        await this.fetchData();
+
+                        this.requeueInProgress = null;
+                    } catch (error) {
+                        console.error('Error re-queueing book:', error);
+                        alert('Failed to re-queue book. Check console for details.');
+                        this.requeueInProgress = null;
                     }
                 },
 

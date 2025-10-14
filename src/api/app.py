@@ -44,7 +44,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET"],  # Read-only for Phase 2.0.2
+    allow_methods=["GET", "POST"],  # Added POST for Phase 2.1.2 (re-queue operations)
     allow_headers=["*"],
 )
 
