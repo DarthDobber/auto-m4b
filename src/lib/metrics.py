@@ -126,11 +126,17 @@ class ConversionMetrics:
         self._loaded = False
 
     def set_metrics_file(self, path: Path):
-        """Set the metrics file path and load existing data."""
+        """Set the metrics file path and load existing data.
+
+        On initial load, session stats are reset to fresh values and file is saved
+        to ensure subsequent reloads don't restore old session data.
+        """
         self._metrics_file = path
         if not self._loaded:
             self.load()
             self._loaded = True
+            # Save immediately to overwrite old session data in file
+            self.save()
 
     def record_conversion(
         self,
@@ -172,14 +178,15 @@ class ConversionMetrics:
 
         if status == "success":
             self.lifetime_successful += 1
+
+            # Update timing stats (only for successful conversions)
+            if duration_seconds > 0:  # Only consider non-zero durations
+                if self.fastest_conversion_seconds == 0 or duration_seconds < self.fastest_conversion_seconds:
+                    self.fastest_conversion_seconds = duration_seconds
+                if duration_seconds > self.slowest_conversion_seconds:
+                    self.slowest_conversion_seconds = duration_seconds
         else:
             self.lifetime_failed += 1
-
-        # Update timing stats
-        if self.fastest_conversion_seconds == 0 or duration_seconds < self.fastest_conversion_seconds:
-            self.fastest_conversion_seconds = duration_seconds
-        if duration_seconds > self.slowest_conversion_seconds:
-            self.slowest_conversion_seconds = duration_seconds
 
         # Update session stats
         self.session.conversions_attempted += 1
@@ -226,7 +233,12 @@ class ConversionMetrics:
         }
 
     def from_dict(self, data: dict):
-        """Load metrics from dictionary."""
+        """Load metrics from dictionary.
+
+        Note: Session stats are only loaded AFTER initial startup.
+        On first load (_loaded=False), session starts fresh with current timestamp.
+        On subsequent reloads (_loaded=True), session data is loaded to preserve current session progress.
+        """
         self.lifetime_attempted = data.get("lifetime_attempted", 0)
         self.lifetime_successful = data.get("lifetime_successful", 0)
         self.lifetime_failed = data.get("lifetime_failed", 0)
@@ -237,10 +249,12 @@ class ConversionMetrics:
         self.first_run_timestamp = data.get("first_run_timestamp", time.time())
         self.last_updated_timestamp = data.get("last_updated_timestamp", time.time())
 
-        # Load session stats
-        session_data = data.get("session", {})
-        if session_data:
-            self.session = SessionStats.from_dict(session_data)
+        # Load session stats only if this is a reload (not initial startup)
+        if self._loaded:
+            session_data = data.get("session", {})
+            if session_data:
+                self.session = SessionStats.from_dict(session_data)
+        # else: keep the fresh SessionStats() created in __init__
 
         # Load history
         history_data = data.get("history", [])

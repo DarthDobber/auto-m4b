@@ -8,7 +8,8 @@ from src.api.schemas.v1 import (
     Metrics,
     LifetimeMetrics,
     SessionMetrics,
-    TimingMetrics
+    TimingMetrics,
+    ConversionHistoryItem
 )
 
 router = APIRouter()
@@ -39,6 +40,19 @@ def get_status():
         status = "waiting"
     else:
         status = "idle"
+
+    # Get recent conversions (last 20)
+    recent_conversions = [
+        ConversionHistoryItem(
+            book_name=record.book_name,
+            status=record.status,
+            duration_seconds=record.duration_seconds,
+            timestamp=record.timestamp,
+            file_size_bytes=record.file_size_bytes,
+            error_message=record.error_message
+        )
+        for record in metrics.get_recent_conversions(limit=20)
+    ]
 
     data = StatusResponse(
         timestamp=time.time(),
@@ -74,7 +88,8 @@ def get_status():
                 slowest_seconds=metrics.slowest_conversion_seconds,
                 average_seconds=int(metrics.lifetime_avg_duration)
             )
-        )
+        ),
+        recent_conversions=recent_conversions
     )
 
     # Return with cache-busting headers

@@ -147,13 +147,18 @@ def get_queue():
     except Exception as e:
         print(f"Warning: Could not scan failed folder: {e}")
 
-    # Calculate summary
+    # Calculate summary (exclude archived books - they appear in Failed Books section)
+    active_books = [b for b in books if b.status != "archived"]
+    pending_statuses = {"new", "ok", "pending"}
+    retry_statuses = {"needs_retry", "retrying"}
+    processing_statuses = {"processing"}
+
     summary = QueueSummary(
-        total=len(books),
-        pending=len([b for b in books if b.status in ["new", "ok"]]),
-        processing=0,  # TODO: Implement active job tracking in Phase 2.1
-        failed=len([b for b in books if b.status == "failed"]),
-        retrying=len([b for b in books if b.status == "needs_retry"])
+        total=len(active_books),
+        pending=len([b for b in active_books if b.status in pending_statuses]),
+        processing=len([b for b in active_books if b.status in processing_statuses]),
+        failed=len([b for b in active_books if b.status == "failed"]),
+        retrying=len([b for b in active_books if b.status in retry_statuses])
     )
 
     data = QueueResponse(

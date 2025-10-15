@@ -64,7 +64,19 @@ class FailedBook:
         if info_file.exists():
             try:
                 content = info_file.read_text()
-                # Extract first error line (usually most informative)
+
+                # Look for "Failure Reason:" section
+                if "Failure Reason:" in content:
+                    # Extract text between "Failure Reason:" and the ending dashes
+                    import re
+                    pattern = r'Failure Reason:\s*\n-+\s*\n(.*?)\n-+'
+                    match = re.search(pattern, content, re.DOTALL)
+                    if match:
+                        reason = match.group(1).strip()
+                        if reason:
+                            return reason
+
+                # Fallback: try old method
                 lines = [line.strip() for line in content.split('\n') if line.strip()]
                 if lines:
                     # Find first line that looks like an error

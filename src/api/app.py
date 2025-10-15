@@ -64,6 +64,12 @@ async def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
+@app.get("/legacy", response_class=HTMLResponse)
+async def legacy_dashboard(request: Request):
+    """Legacy dashboard UI"""
+    return templates.TemplateResponse("dashboard_legacy.html", {"request": request})
+
+
 @app.get("/api")
 def api_root():
     """API root endpoint"""

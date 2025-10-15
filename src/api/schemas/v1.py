@@ -40,6 +40,15 @@ class Metrics(BaseModel):
     timing: TimingMetrics
 
 
+class ConversionHistoryItem(BaseModel):
+    book_name: str = Field(..., description="Name of the audiobook")
+    status: str = Field(..., description="Conversion status: success or failed")
+    duration_seconds: int = Field(..., description="Conversion duration")
+    timestamp: float = Field(..., description="Completion timestamp")
+    file_size_bytes: int = Field(..., description="Output file size (0 if failed)")
+    error_message: str = Field(default="", description="Error message if failed")
+
+
 class StatusResponse(BaseModel):
     version: str = Field(default="1.0.0", description="API version")
     timestamp: float = Field(..., description="Response timestamp")
@@ -47,6 +56,7 @@ class StatusResponse(BaseModel):
     status: str = Field(..., description="System status: idle, processing, or waiting")
     config: Dict[str, Any] = Field(..., description="Configuration snapshot")
     metrics: Metrics
+    recent_conversions: List[ConversionHistoryItem] = Field(default=[], description="Recent conversion history")
 
 
 # Queue endpoint schemas

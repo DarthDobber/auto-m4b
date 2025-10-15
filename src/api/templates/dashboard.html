@@ -3,396 +3,835 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto-M4B Dashboard</title>
+    <title>Auto-M4B Operations Center</title>
     <link rel="stylesheet" href="/static/css/dashboard.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 </head>
 <body x-data="dashboard()" x-init="init()">
-    <!-- Header -->
-    <div class="header">
-        <h1>🎧 Auto-M4B Dashboard</h1>
-        <p class="header-subtitle">Real-time audiobook conversion monitoring</p>
-        <div class="header-status">
-            <div class="status-badge" :class="status.toLowerCase()" x-show="status">
-                <span class="status-indicator" :class="status.toLowerCase()"></span>
-                <span x-text="status.charAt(0).toUpperCase() + status.slice(1)"></span>
-            </div>
-            <div class="status-badge">
-                <span x-text="'Uptime: ' + formatDuration(uptime)"></span>
-            </div>
-            <div class="status-badge">
-                <span x-text="'Last updated: ' + lastUpdated"></span>
-            </div>
-        </div>
-    </div>
-
-    <div class="container">
-        <!-- Metrics Grid -->
-        <div class="dashboard-grid">
-            <!-- Lifetime Stats -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Lifetime Statistics</h2>
-                    <span class="card-icon">📊</span>
-                </div>
-                <div class="stat-grid">
-                    <div class="stat">
-                        <div class="stat-value" x-text="metrics.lifetime.total">0</div>
-                        <div class="stat-label">Total</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value text-success" x-text="metrics.lifetime.successful">0</div>
-                        <div class="stat-label">Successful</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value text-danger" x-text="metrics.lifetime.failed">0</div>
-                        <div class="stat-label">Failed</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value" x-text="metrics.lifetime.success_rate.toFixed(1) + '%'">0%</div>
-                        <div class="stat-label">Success Rate</div>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <div class="metric-row">
-                        <span class="metric-label">Avg Duration</span>
-                        <span class="metric-value" x-text="formatDuration(metrics.lifetime.avg_duration_seconds)">-</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Total Processed</span>
-                        <span class="metric-value" x-text="formatBytes(metrics.lifetime.total_bytes_processed)">-</span>
-                    </div>
+    <div class="app-shell" :class="loading ? 'is-loading' : ''">
+        <header class="app-header">
+            <div class="brand">
+                <span class="brand-mark">🎧</span>
+                <div>
+                    <h1>Auto-M4B Ops Center</h1>
+                    <p>End-to-end intake visibility from queue to delivery</p>
                 </div>
             </div>
 
-            <!-- Session Stats -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Current Session</h2>
-                    <span class="card-icon">⏱️</span>
+            <div class="status-strip">
+                <div class="status-chip" :class="statusClass()">
+                    <span class="dot"></span>
+                    <span x-text="statusLabel()"></span>
                 </div>
-                <div class="stat-grid">
-                    <div class="stat">
-                        <div class="stat-value" x-text="metrics.session.total">0</div>
-                        <div class="stat-label">Total</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value text-success" x-text="metrics.session.successful">0</div>
-                        <div class="stat-label">Successful</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value text-danger" x-text="metrics.session.failed">0</div>
-                        <div class="stat-label">Failed</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value" x-text="metrics.session.success_rate.toFixed(1) + '%'">0%</div>
-                        <div class="stat-label">Success Rate</div>
-                    </div>
+                <div class="status-chip neutral" title="System uptime">
+                    ⏱️ <span x-text="formatDuration(uptime)"></span>
                 </div>
-                <div class="mt-2">
-                    <div class="metric-row">
-                        <span class="metric-label">Uptime</span>
-                        <span class="metric-value" x-text="formatDuration(metrics.session.uptime_seconds)">-</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Processed</span>
-                        <span class="metric-value" x-text="formatBytes(metrics.session.total_bytes_processed)">-</span>
-                    </div>
+                <div class="status-chip neutral" title="Last refresh">
+                    🔄 <span x-text="lastUpdated || 'Never'"></span>
+                </div>
+                <div
+                    class="status-chip accent link"
+                    title="Failed or archived items"
+                    role="button"
+                    tabindex="0"
+                    @click="focusFailures(true)"
+                    @keydown.enter.prevent="focusFailures(true)"
+                    @keydown.space.prevent="focusFailures(true)"
+                    :aria-expanded="panel === 'overview' && showFailures && failedBooks.length > 0"
+                >
+                    ⚠️ <span x-text="failedBooks.length + ' needing attention'"></span>
                 </div>
             </div>
+        </header>
 
-            <!-- Timing Stats -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Timing Statistics</h2>
-                    <span class="card-icon">⚡</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Fastest</span>
-                    <span class="metric-value" x-text="formatDuration(metrics.timing.fastest_seconds)">-</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Slowest</span>
-                    <span class="metric-value" x-text="formatDuration(metrics.timing.slowest_seconds)">-</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Average</span>
-                    <span class="metric-value" x-text="formatDuration(metrics.timing.average_seconds)">-</span>
-                </div>
-            </div>
-        </div>
+        <nav class="view-switcher">
+            <button :class="panel === 'overview' ? 'active' : ''" @click="panel = 'overview'">Overview</button>
+            <button :class="panel === 'activity' ? 'active' : ''" @click="panel = 'activity'">Activity</button>
+            <button :class="panel === 'operations' ? 'active' : ''" @click="panel = 'operations'">Operations</button>
+            <button :class="panel === 'roadmap' ? 'active' : ''" @click="panel = 'roadmap'">Roadmap Fit</button>
+            <a class="legacy-link" href="/legacy" target="_blank">Legacy Dashboard ↗</a>
+        </nav>
 
-        <!-- Failed Books Section -->
-        <div class="card" x-show="failedBooks.length > 0">
-            <div class="card-header">
-                <h2 class="card-title">Failed Books</h2>
-                <span class="card-icon">⚠️</span>
-            </div>
+        <main>
+            <section x-show="panel === 'overview'" x-cloak>
+                <div class="grid metrics">
+                    <article class="card kpi">
+                        <header>
+                            <div>
+                                <p class="eyebrow">Lifetime throughput</p>
+                                <h2 x-text="metrics.lifetime.total"></h2>
+                            </div>
+                            <span class="badge success" x-text="metrics.lifetime.success_rate.toFixed(1) + '% success'"></span>
+                        </header>
+                        <dl>
+                            <div>
+                                <dt>Successful</dt>
+                                <dd x-text="metrics.lifetime.successful"></dd>
+                            </div>
+                            <div>
+                                <dt>Failed</dt>
+                                <dd x-text="metrics.lifetime.failed"></dd>
+                            </div>
+                            <div>
+                                <dt>Average duration</dt>
+                                <dd x-text="formatDuration(metrics.lifetime.avg_duration_seconds)"></dd>
+                            </div>
+                            <div>
+                                <dt>Data processed</dt>
+                                <dd x-text="formatBytes(metrics.lifetime.total_bytes_processed)"></dd>
+                            </div>
+                        </dl>
+                    </article>
 
-            <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1rem;">
-                These books failed to convert. Click "Re-queue" to retry after resolving the issue.
-            </p>
+                    <article class="card kpi">
+                        <header>
+                            <div>
+                                <p class="eyebrow">Current session</p>
+                                <h2 x-text="metrics.session.total"></h2>
+                            </div>
+                            <span class="badge" :class="metrics.session.failed ? 'warn' : 'info'" x-text="metrics.session.success_rate.toFixed(1) + '% success'"></span>
+                        </header>
+                        <dl>
+                            <div>
+                                <dt>Successful</dt>
+                                <dd x-text="metrics.session.successful"></dd>
+                            </div>
+                            <div>
+                                <dt>Failed</dt>
+                                <dd x-text="metrics.session.failed"></dd>
+                            </div>
+                            <div>
+                                <dt>Session uptime</dt>
+                                <dd x-text="formatDuration(metrics.session.uptime_seconds)"></dd>
+                            </div>
+                            <div>
+                                <dt>Data processed</dt>
+                                <dd x-text="formatBytes(metrics.session.total_bytes_processed)"></dd>
+                            </div>
+                        </dl>
+                    </article>
 
-            <ul class="book-list">
-                <template x-for="(book, index) in failedBooks" :key="book.path || book.key || index">
-                    <li class="book-item">
-                        <div class="book-name" x-text="book.key"></div>
-                        <div class="book-meta">
-                            <span class="book-status" :class="book.status" x-text="book.status"></span>
-                            <span x-text="formatBytes(book.size_bytes)"></span>
-                            <span class="text-danger" x-text="'Retry ' + book.retry_count + '/' + book.max_retries"></span>
-                            <span x-show="book.is_archived" class="text-muted" x-text="'Archived: ' + book.timestamp_str"></span>
+                    <article class="card stack">
+                        <header>
+                            <div>
+                                <p class="eyebrow">Conversion timing</p>
+                                <h2>Performance snapshot</h2>
+                            </div>
+                        </header>
+                        <ul class="list">
+                            <li>
+                                <span>Fastest conversion</span>
+                                <strong x-text="formatDuration(metrics.timing.fastest_seconds)"></strong>
+                            </li>
+                            <li>
+                                <span>Average conversion</span>
+                                <strong x-text="formatDuration(metrics.timing.average_seconds)"></strong>
+                            </li>
+                            <li>
+                                <span>Slowest conversion</span>
+                                <strong x-text="formatDuration(metrics.timing.slowest_seconds)"></strong>
+                            </li>
+                        </ul>
+                    </article>
+
+                    <article class="card stack">
+                        <header>
+                            <div>
+                                <p class="eyebrow">Pipeline signals</p>
+                                <h2>Intake health</h2>
+                            </div>
+                            <button class="refresh" @click="refresh()">Manual refresh</button>
+                        </header>
+                        <ul class="list signals">
+                            <li>
+                                <span>Inbox load</span>
+                                <strong x-text="queue.summary.total + ' items'" :class="queue.summary.total ? '' : 'muted'"></strong>
+                            </li>
+                            <li>
+                                <span>Processing</span>
+                                <strong x-text="queue.summary.processing"></strong>
+                            </li>
+                            <li>
+                                <span>Pending retries</span>
+                                <strong :class="queue.summary.retrying ? 'warn' : ''" x-text="queue.summary.retrying"></strong>
+                            </li>
+                            <li>
+                                <span>Attention required</span>
+                                <strong :class="failedBooks.length ? 'warn' : ''" x-text="failedBooks.length"></strong>
+                            </li>
+                        </ul>
+                    </article>
+                </div>
+
+                <div class="grid content">
+                    <section class="card queue" x-ref="queue">
+                        <header>
+                            <div>
+                                <p class="eyebrow">Live queue</p>
+                                <h2>Conversion backlog</h2>
+                            </div>
+                            <div class="filters">
+                                <label>Status filter:</label>
+                                <select x-model="selectedFilter" @change="handleFilterChange($event.target.value)">
+                                    <option value="all">All</option>
+                                    <option value="active">Active</option>
+                                    <option value="waiting">Pending</option>
+                                    <option value="retrying">Retrying</option>
+                                    <option value="failed">Failed</option>
+                                    <option value="archived">Archived</option>
+                                </select>
+                            </div>
+                        </header>
+
+                        <template x-if="displayBooks.length === 0">
+                            <div class="empty">
+                                <p>No books match this filter.</p>
+                                <p class="muted">Add titles to the inbox directory to kick off conversions.</p>
+                            </div>
+                        </template>
+
+                        <ul class="table" x-show="displayBooks.length > 0">
+                            <li class="table-head">
+                                <span>Book</span>
+                                <span>Status</span>
+                                <span>Size</span>
+                                <span>Retry ETA</span>
+                            </li>
+                            <template x-for="book in displayBooks" :key="book._key">
+                                <li class="table-row" @click="selectBook(book)" :class="selectedBook && selectedBook.key === book.key ? 'selected' : ''">
+                                    <span class="book-title" x-text="book.key"></span>
+                                    <span>
+                                        <span class="state" :class="book.status" x-text="stateLabel(book.status)"></span>
+                                    </span>
+                                    <span x-text="formatBytes(book.size_bytes)"></span>
+                                    <span x-text="retryLabel(book)"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </section>
+
+                    <template x-if="selectedBook">
+                        <aside class="card detail" x-cloak>
+                            <header>
+                                <div>
+                                    <p class="eyebrow">Selected item</p>
+                                    <h2 x-text="selectedBook.key"></h2>
+                                </div>
+                                <span class="badge subtle" x-text="stateLabel(selectedBook.status)"></span>
+                            </header>
+
+                            <dl class="detail-grid">
+                                <div>
+                                    <dt>Status</dt>
+                                    <dd x-text="stateLabel(selectedBook.status)"></dd>
+                                </div>
+                                <div>
+                                    <dt>File size</dt>
+                                    <dd x-text="formatBytes(selectedBook.size_bytes)"></dd>
+                                </div>
+                                <div>
+                                    <dt>Retry count</dt>
+                                    <dd x-text="(selectedBook.retry_count ?? 0) + ' / ' + (selectedBook.max_retries ?? '—')"></dd>
+                                </div>
+                                <div>
+                                    <dt>Next retry</dt>
+                                    <dd x-text="retryLabel(selectedBook)"></dd>
+                                </div>
+                                <div>
+                                    <dt>Archived</dt>
+                                    <dd x-text="selectedBook.is_archived ? 'Yes' : 'No'"></dd>
+                                </div>
+                                <div>
+                                    <dt>Last updated</dt>
+                                    <dd x-text="selectedBook.timestamp_str || '—'"></dd>
+                                </div>
+                            </dl>
+
+                            <div class="error" x-show="selectedBook.failed_reason">
+                                <strong>Failure details:</strong>
+                                <p x-text="selectedBook.failed_reason"></p>
+                            </div>
+
+                            <div class="actions">
+                                <button class="primary" @click="requeueBook(selectedBook.key)" :disabled="requeueInProgress === selectedBook.key">
+                                    <span x-show="requeueInProgress !== selectedBook.key">Re-queue job</span>
+                                    <span x-show="requeueInProgress === selectedBook.key">Re-queueing…</span>
+                                </button>
+                                <button class="secondary" disabled title="Skip / passthrough controls coming in Phase 2.1.3">Skip conversion (soon)</button>
+                                <button class="secondary" disabled title="Tagging orchestration coming in Phase 3">Send to tagging (soon)</button>
+                            </div>
+
+                            <p class="muted">Manual controls are staged for upcoming roadmap phases. Actions above illustrate where they will live once endpoints are available.</p>
+                        </aside>
+                    </template>
+                    <template x-if="!selectedBook">
+                        <aside class="card detail placeholder" x-cloak>
+                            <p class="muted">Select a book from the queue or recovery list to inspect details.</p>
+                        </aside>
+                    </template>
+                </div>
+
+                <section
+                    class="card failures"
+                    x-show="failedBooks.length > 0"
+                    :class="{ collapsed: !showFailures }"
+                    x-ref="failures"
+                >
+                    <header>
+                        <div>
+                            <p class="eyebrow">Recovery queue</p>
+                            <h2>Attention items</h2>
                         </div>
-                        <div class="book-error" x-show="book.failed_reason">
-                            <strong>Error:</strong> <span x-text="book.failed_reason"></span>
+                        <button
+                            type="button"
+                            class="badge warn link"
+                            @click="toggleFailures()"
+                            :aria-expanded="showFailures"
+                            x-text="showFailures ? ('Hide ' + failedBooks.length + ' to triage') : ('Show ' + failedBooks.length + ' to triage')"
+                        ></button>
+                    </header>
+                    <ul class="failure-list" x-show="showFailures">
+                        <template x-for="book in failedBooks" :key="book._key">
+                            <li>
+                                <div>
+                                    <h3 x-text="book.key"></h3>
+                                    <p class="muted" x-text="book.failed_reason || 'No failure message captured'"></p>
+                                </div>
+                                <div class="failure-meta">
+                                    <span>Retries: <strong x-text="book.retry_count + '/' + book.max_retries"></strong></span>
+                                    <span x-text="book.is_archived ? 'Archived '+ (book.timestamp_str || '') : 'Active failure'"></span>
+                                    <div class="failure-actions">
+                                        <button
+                                            class="button-pill"
+                                            @click="requeueBook(book.key)"
+                                            :disabled="requeueInProgress === book.key">
+                                            <span x-show="requeueInProgress !== book.key" x-text="book.is_archived ? 'Restore & Re-queue' : 'Re-queue'"></span>
+                                            <span x-show="requeueInProgress === book.key">Re-queueing…</span>
+                                        </button>
+                                        <button class="text" @click="openInQueue(book)">Open in queue</button>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </section>
+            </section>
+
+            <section x-show="panel === 'activity'" x-cloak>
+                <article class="card activity">
+                    <header>
+                        <div>
+                            <p class="eyebrow">Run history</p>
+                            <h2>Recent conversions</h2>
                         </div>
-                        <div class="book-actions">
-                            <button
-                                class="btn-requeue"
-                                @click="requeueBook(book.key)"
-                                :disabled="requeueInProgress === book.key">
-                                <span x-show="requeueInProgress !== book.key">
-                                    <span x-show="book.is_archived">📥 Restore & Re-queue</span>
-                                    <span x-show="!book.is_archived">🔄 Re-queue</span>
-                                </span>
-                                <span x-show="requeueInProgress === book.key">⏳ Re-queueing...</span>
-                            </button>
+                        <span class="badge" :class="recentConversions.length ? 'info' : 'subtle'" x-text="recentConversions.length ? recentConversions.length + ' records' : 'No history yet'"></span>
+                    </header>
+                    <template x-if="recentConversions.length === 0">
+                        <div class="empty">
+                            <p>No conversion history available yet.</p>
+                            <p class="muted">History keeps the last 20 items from the metrics service.</p>
                         </div>
-                    </li>
-                </template>
-            </ul>
-        </div>
+                    </template>
+                    <ol class="timeline" x-show="recentConversions.length > 0">
+                        <template x-for="conv in recentConversions" :key="conv.timestamp + conv.book_name">
+                            <li>
+                                <div class="marker" :class="conv.status === 'success' ? 'ok' : 'fail'"></div>
+                                <div class="content">
+                                    <header>
+                                        <h3 x-text="conv.book_name"></h3>
+                                        <span class="tag" :class="conv.status === 'success' ? 'ok' : 'fail'" x-text="conv.status === 'success' ? 'Success' : 'Failed'"></span>
+                                    </header>
+                                    <dl>
+                                        <div>
+                                            <dt>Runtime</dt>
+                                            <dd x-text="formatDuration(conv.duration_seconds)"></dd>
+                                        </div>
+                                        <div>
+                                            <dt>Size</dt>
+                                            <dd x-text="formatBytes(conv.file_size_bytes)"></dd>
+                                        </div>
+                                        <div>
+                                            <dt>Completed</dt>
+                                            <dd x-text="formatTimestamp(conv.timestamp)"></dd>
+                                        </div>
+                                    </dl>
+                                    <p class="muted" x-show="conv.status !== 'success' && conv.error_message" x-text="conv.error_message"></p>
+                                </div>
+                            </li>
+                        </template>
+                    </ol>
+                </article>
+            </section>
 
-        <!-- Queue Section -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Conversion Queue</h2>
-                <span class="card-icon">📚</span>
-            </div>
-
-            <!-- Queue Summary -->
-            <div class="queue-summary" x-show="queue.summary.total > 0">
-                <div class="queue-stat">
-                    <div class="queue-stat-value" x-text="queue.summary.total">0</div>
-                    <div class="queue-stat-label">Total</div>
-                </div>
-                <div class="queue-stat">
-                    <div class="queue-stat-value" x-text="queue.summary.pending">0</div>
-                    <div class="queue-stat-label">Pending</div>
-                </div>
-                <div class="queue-stat">
-                    <div class="queue-stat-value" x-text="queue.summary.processing">0</div>
-                    <div class="queue-stat-label">Processing</div>
-                </div>
-                <div class="queue-stat">
-                    <div class="queue-stat-value text-danger" x-text="queue.summary.failed">0</div>
-                    <div class="queue-stat-label">Failed</div>
-                </div>
-                <div class="queue-stat">
-                    <div class="queue-stat-value text-warning" x-text="queue.summary.retrying">0</div>
-                    <div class="queue-stat-label">Retrying</div>
-                </div>
-            </div>
-
-            <!-- Book List -->
-            <ul class="book-list" x-show="queue.books.length > 0">
-                <template x-for="(book, index) in queue.books" :key="book.path || book.key || index">
-                    <li class="book-item">
-                        <div class="book-name" x-text="book.key"></div>
-                        <div class="book-meta">
-                            <span class="book-status" :class="book.status" x-text="book.status"></span>
-                            <span x-text="formatBytes(book.size_bytes)"></span>
-                            <span x-show="book.failed_reason" x-text="'Error: ' + book.failed_reason"></span>
-                            <span x-show="book.retry_countdown_seconds > 0"
-                                  x-text="'Retry in ' + formatDuration(book.retry_countdown_seconds)">
-                            </span>
+            <section x-show="panel === 'operations'" x-cloak>
+                <div class="grid operations">
+                    <article class="card stack">
+                        <header>
+                            <div>
+                                <p class="eyebrow">Manual controls</p>
+                                <h2>Job management</h2>
+                            </div>
+                        </header>
+                        <p class="muted">Roadmap Phase 2.1.3 introduces skip, reprocess, and tagging controls. The layout below reserves space for those interactions.</p>
+                        <div class="operations-grid">
+                            <button class="secondary" disabled>Skip conversion</button>
+                            <button class="secondary" disabled>Reprocess from source</button>
+                            <button class="secondary" disabled>Trigger tagging run</button>
+                            <button class="secondary" disabled>Mark as manual review</button>
                         </div>
-                    </li>
-                </template>
-            </ul>
+                    </article>
 
-            <!-- Empty State -->
-            <div class="empty-state" x-show="queue.books.length === 0 && !loading">
-                <div class="empty-state-icon">📭</div>
-                <p class="empty-state-text">No books in queue</p>
-                <p class="text-muted" style="font-size: 0.875rem; margin-top: 0.5rem;">
-                    Add audiobooks to your inbox folder to start processing
-                </p>
-            </div>
+                    <article class="card stack">
+                        <header>
+                            <div>
+                                <p class="eyebrow">Notification channels</p>
+                                <h2>Phase 2.2 staging</h2>
+                            </div>
+                        </header>
+                        <ul class="list">
+                            <li>
+                                <span>Discord webhooks</span>
+                                <strong class="muted">Coming soon</strong>
+                            </li>
+                            <li>
+                                <span>Email & Pushover</span>
+                                <strong class="muted">Coming soon</strong>
+                            </li>
+                            <li>
+                                <span>Per-destination filters</span>
+                                <strong class="muted">Coming soon</strong>
+                            </li>
+                        </ul>
+                    </article>
 
-            <!-- Loading State -->
-            <div class="loading" x-show="loading">
-                <div class="spinner"></div>
-                <p>Loading queue data...</p>
-            </div>
-        </div>
+                    <article class="card stack">
+                        <header>
+                            <div>
+                                <p class="eyebrow">System guardrails</p>
+                                <h2>Health checks</h2>
+                            </div>
+                        </header>
+                        <p class="muted">Phase 2.3 will surface disk space, tool availability, and Prometheus metrics here. For now the API health endpoint can be accessed at <code>/api/v1/health</code>.</p>
+                        <div class="signals-callout">
+                            <span>Planned metrics:</span>
+                            <ul>
+                                <li>Storage capacity</li>
+                                <li>m4b-tool availability</li>
+                                <li>Credential readiness</li>
+                            </ul>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section x-show="panel === 'roadmap'" x-cloak>
+                <article class="card roadmap">
+                    <header>
+                        <div>
+                            <p class="eyebrow">Roadmap alignment</p>
+                            <h2>How this UI supports Phase 2+</h2>
+                        </div>
+                    </header>
+                    <ol>
+                        <li>
+                            <h3>Phase 2.1.2 – Failed job management</h3>
+                            <p>The Failure drawer and Operations panel already reserve space for inline triage, retry notes, and FAILED_INFO.txt rendering.</p>
+                        </li>
+                        <li>
+                            <h3>Phase 2.1.3 – Advanced controls</h3>
+                            <p>The action bar in the detail pane exposes the future skip/reprocess/tagging controls without changing layout once endpoints exist.</p>
+                        </li>
+                        <li>
+                            <h3>Phase 2.1.4 – Security & integration</h3>
+                            <p>Navigation and panel structure anticipate auth-protected views; add login gating without redesigning content blocks.</p>
+                        </li>
+                        <li>
+                            <h3>Phase 2.2 – Notifications</h3>
+                            <p>Notification panel highlights planned channels so operators know what's coming and where statuses will surface.</p>
+                        </li>
+                        <li>
+                            <h3>Phase 2.3 – Health checks</h3>
+                            <p>Guardrails card will display disk checks, queue lag, and Prometheus hints once metrics are wired.</p>
+                        </li>
+                        <li>
+                            <h3>Phase 3 – Tagging orchestration</h3>
+                            <p>Detail pane and Operations tooling already include a reserved CTA for handing off to the tagging pipeline.</p>
+                        </li>
+                    </ol>
+                </article>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <span>Auto-M4B © <span x-text="new Date().getFullYear()"></span></span>
+            <span>Refresh interval: <strong x-text="(refreshEveryMs / 1000) + 's'"></strong></span>
+        </footer>
     </div>
 
     <script>
         function dashboard() {
+            const defaults = () => ({
+                lifetime: {
+                    total: 0,
+                    successful: 0,
+                    failed: 0,
+                    success_rate: 0,
+                    avg_duration_seconds: 0,
+                    total_bytes_processed: 0
+                },
+                session: {
+                    total: 0,
+                    successful: 0,
+                    failed: 0,
+                    success_rate: 0,
+                    uptime_seconds: 0,
+                    total_bytes_processed: 0
+                },
+                timing: {
+                    fastest_seconds: 0,
+                    average_seconds: 0,
+                    slowest_seconds: 0
+                }
+            });
+
             return {
+                loading: true,
+                panel: 'overview',
+                metrics: defaults(),
+                queue: { summary: { total: 0, pending: 0, processing: 0, failed: 0, retrying: 0 }, books: [] },
+                allBooks: [],
+                displayBooks: [],
+                failedBooks: [],
+                recentConversions: [],
+                selectedFilter: 'all',
+                lastQueueFilter: 'all',
+                failureFilterApplied: false,
+                selectedBook: null,
+                refreshEveryMs: 10000,
+                refreshHandle: null,
                 status: 'idle',
                 uptime: 0,
-                lastUpdated: 'Never',
-                loading: true,
+                lastUpdated: null,
                 requeueInProgress: null,
-                metrics: {
-                    lifetime: {
-                        total: 0,
-                        successful: 0,
-                        failed: 0,
-                        success_rate: 0,
-                        avg_duration_seconds: 0,
-                        total_bytes_processed: 0
-                    },
-                    session: {
-                        total: 0,
-                        successful: 0,
-                        failed: 0,
-                        success_rate: 0,
-                        uptime_seconds: 0,
-                        total_bytes_processed: 0
-                    },
-                    timing: {
-                        fastest_seconds: 0,
-                        slowest_seconds: 0,
-                        average_seconds: 0
-                    }
-                },
-                queue: {
-                    summary: {
-                        total: 0,
-                        pending: 0,
-                        processing: 0,
-                        failed: 0,
-                        retrying: 0
-                    },
-                    books: []
-                },
-                failedBooks: [],
+                showFailures: false,
 
                 init() {
-                    this.fetchData();
-                    // Auto-refresh every 10 seconds
-                    setInterval(() => this.fetchData(), 10000);
+                    this.refresh();
+                    this.refreshHandle = setInterval(() => this.refresh(), this.refreshEveryMs);
                 },
 
-                async fetchData() {
+                async refresh() {
                     try {
-                        // Fetch status (disable cache)
-                        const statusRes = await fetch('/api/v1/status', {
-                            cache: 'no-store',
-                            headers: {
-                                'Cache-Control': 'no-cache'
-                            }
-                        });
+                        this.loading = true;
+                        const [statusRes, queueRes] = await Promise.all([
+                            fetch('/api/v1/status', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }),
+                            fetch('/api/v1/queue', { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
+                        ]);
+
                         const statusData = await statusRes.json();
-
-                        this.status = statusData.status;
-                        this.uptime = statusData.uptime_seconds;
-                        this.metrics = statusData.metrics;
-
-                        // Fetch queue (disable cache)
-                        const queueRes = await fetch('/api/v1/queue', {
-                            cache: 'no-store',
-                            headers: {
-                                'Cache-Control': 'no-cache'
-                            }
-                        });
                         const queueData = await queueRes.json();
 
-                        this.queue = queueData;
+                        this.status = statusData.status || 'idle';
+                        this.uptime = statusData.uptime_seconds || 0;
+                        this.metrics = statusData.metrics || defaults();
+                        this.recentConversions = Array.isArray(statusData.recent_conversions) ? statusData.recent_conversions : [];
 
-                        // Extract failed books (including archived)
-                        this.failedBooks = queueData.books.filter(b =>
-                            b.status === 'failed' || b.status === 'needs_retry' || b.status === 'archived'
-                        );
+                        const originalBooks = Array.isArray(queueData.books) ? queueData.books : [];
+                        const summary = queueData.summary || {};
 
-                        // Debug logging
-                        console.log('[Dashboard] Total books:', queueData.books.length);
-                        console.log('[Dashboard] Failed books:', this.failedBooks.length);
-                        console.log('[Dashboard] Failed books array:', this.failedBooks);
+                        const normalizedBooks = originalBooks.map((rawBook, index) => {
+                            const safeKey = rawBook?.key || rawBook?.path || `book-${index}`;
+                            const uniqueKey = `${safeKey}-${index}`;
+                            return {
+                                ...rawBook,
+                                key: safeKey,
+                                path: rawBook?.path || rawBook?.key || safeKey,
+                                status: rawBook?.status || 'unknown',
+                                size_bytes: rawBook?.size_bytes ?? 0,
+                                retry_count: rawBook?.retry_count ?? 0,
+                                max_retries: rawBook?.max_retries ?? 0,
+                                retry_countdown_seconds: rawBook?.retry_countdown_seconds ?? 0,
+                                failed_reason: rawBook?.failed_reason || '',
+                                timestamp_str: rawBook?.timestamp_str || '',
+                                is_archived: rawBook?.is_archived ?? rawBook?.status === 'archived',
+                                _key: uniqueKey
+                            };
+                        });
 
-                        // Update last updated time
+                        const failedBooks = normalizedBooks.filter((b) => ['failed', 'needs_retry', 'retrying', 'archived'].includes(b.status));
+                        const pendingStatuses = ['pending', 'new', 'ok'];
+                        const retryStatuses = ['needs_retry', 'retrying'];
+
+                        const activeBooks = normalizedBooks.filter((b) => !b.is_archived);
+                        const pendingCount = activeBooks.filter((b) => pendingStatuses.includes(b.status)).length;
+                        const processingCount = activeBooks.filter((b) => b.status === 'processing').length;
+                        const retryingCount = activeBooks.filter((b) => retryStatuses.includes(b.status)).length;
+                        const failedActiveCount = activeBooks.filter((b) => b.status === 'failed').length;
+
+                        this.queue = {
+                            ...queueData,
+                            books: normalizedBooks,
+                            summary: {
+                                total: summary.total ?? activeBooks.length,
+                                pending: summary.pending ?? pendingCount,
+                                processing: summary.processing ?? processingCount,
+                                failed: summary.failed ?? failedActiveCount,
+                                retrying: summary.retrying ?? retryingCount
+                            }
+                        };
+
+                        this.allBooks = normalizedBooks;
+                        this.failedBooks = failedBooks.map((book) => ({ ...book }));
+
+                        this.updateDisplayBooks({ preserveSelection: true });
+
                         const now = new Date();
                         this.lastUpdated = now.toLocaleTimeString();
-
-                        this.loading = false;
                     } catch (error) {
-                        console.error('Error fetching data:', error);
+                        console.error('Failed to refresh dashboard', error);
+                    } finally {
                         this.loading = false;
                     }
+                },
+
+                handleFilterChange(value) {
+                    this.applyFilter(value, { preserveSelection: false });
+                },
+
+                applyFilter(filter, { fromFailures = false, preserveSelection = true } = {}) {
+                    if (filter !== 'failed') {
+                        this.lastQueueFilter = filter;
+                        this.failureFilterApplied = false;
+                    } else {
+                        this.failureFilterApplied = fromFailures;
+                    }
+                    this.selectedFilter = filter;
+                    this.updateDisplayBooks({ preserveSelection });
+                },
+
+                filterBooks(filter) {
+                    const pendingStatuses = ['pending', 'new', 'ok'];
+                    const retryStatuses = ['needs_retry', 'retrying'];
+                    switch (filter) {
+                        case 'active':
+                            return this.allBooks.filter((b) => b.status === 'processing');
+                        case 'waiting':
+                            return this.allBooks.filter((b) => pendingStatuses.includes(b.status));
+                        case 'retrying':
+                            return this.allBooks.filter((b) => retryStatuses.includes(b.status));
+                        case 'failed':
+                            return this.allBooks.filter((b) => ['failed', 'needs_retry', 'retrying', 'archived'].includes(b.status));
+                        case 'archived':
+                            return this.allBooks.filter((b) => b.is_archived || b.status === 'archived');
+                        default:
+                            return this.allBooks;
+                    }
+                },
+
+                isSameBook(a, b) {
+                    if (!a || !b) return false;
+                    if (a.key && b.key && a.key === b.key) return true;
+                    if (a.path && b.path && a.path === b.path) return true;
+                    return false;
+                },
+
+                findMatchingBook(book) {
+                    if (!book) return null;
+                    return this.allBooks.find((entry) => this.isSameBook(entry, book)) || null;
+                },
+
+                updateDisplayBooks({ preserveSelection = true } = {}) {
+                    const filtered = this.filterBooks(this.selectedFilter);
+                    this.displayBooks = filtered.map((book) => ({ ...book }));
+
+                    if (this.selectedFilter === 'failed' && this.failureFilterApplied && this.displayBooks.length === 0) {
+                        this.selectedFilter = this.lastQueueFilter || 'all';
+                        this.failureFilterApplied = false;
+                        this.displayBooks = this.filterBooks(this.selectedFilter).map((book) => ({ ...book }));
+                    }
+
+                    if (this.displayBooks.length) {
+                        let next = null;
+                        if (preserveSelection && this.selectedBook) {
+                            next = this.displayBooks.find((book) => this.isSameBook(book, this.selectedBook));
+                        }
+                        if (!next) {
+                            next = this.displayBooks[0];
+                        }
+                        this.selectBook(next);
+                    } else {
+                        const stillExists = this.selectedBook && this.allBooks.find((book) => this.isSameBook(book, this.selectedBook));
+                        if (!stillExists) {
+                            this.selectBook(null);
+                        }
+                    }
+                },
+
+                selectBook(book) {
+                    if (!book) {
+                        this.selectedBook = null;
+                        return;
+                    }
+                    this.selectedBook = this.findMatchingBook(book) || book;
+                },
+
+                stateLabel(status) {
+                    if (!status) return 'Unknown';
+                    const map = {
+                        pending: 'Pending',
+                        processing: 'Processing',
+                        failed: 'Failed',
+                        needs_retry: 'Needs Retry',
+                        retrying: 'Retrying',
+                        archived: 'Archived',
+                        ok: 'Completed',
+                        success: 'Completed'
+                    };
+                    if (map[status]) {
+                        return map[status];
+                    }
+                    return status
+                        .toString()
+                        .split('_')
+                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                        .join(' ');
+                },
+
+                retryLabel(book) {
+                    if (!book) return '—';
+                    if (book.retry_countdown_seconds > 0) {
+                        return 'Retry in ' + this.formatDuration(book.retry_countdown_seconds);
+                    }
+                    if (book.status === 'processing') {
+                        return 'In progress';
+                    }
+                    if (book.status === 'failed' && book.retry_count >= book.max_retries) {
+                        return 'Manual intervention';
+                    }
+                    return '—';
+                },
+
+                statusClass() {
+                    const map = {
+                        idle: 'idle',
+                        processing: 'processing',
+                        waiting: 'waiting',
+                        error: 'error'
+                    };
+                    return map[this.status] || 'idle';
+                },
+
+                statusLabel() {
+                    if (!this.status) return 'Unknown';
+                    return this.status.charAt(0).toUpperCase() + this.status.slice(1);
+                },
+
+                toggleFailures() {
+                    this.showFailures = !this.showFailures;
+                    if (this.showFailures) {
+                        if (this.failedBooks.length) {
+                            this.applyFilter('failed', { fromFailures: true, preserveSelection: false });
+                        } else {
+                            this.applyFilter(this.lastQueueFilter || 'all', { preserveSelection: false });
+                        }
+                        this.$nextTick(() => {
+                            this.$refs.failures?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        });
+                    } else {
+                        if (this.failureFilterApplied) {
+                            this.applyFilter(this.lastQueueFilter || 'all', { preserveSelection: true });
+                        } else {
+                            this.updateDisplayBooks({ preserveSelection: true });
+                        }
+                        this.failureFilterApplied = false;
+                    }
+                },
+
+                focusFailures(scroll = false) {
+                    this.panel = 'overview';
+                    this.showFailures = true;
+                    if (this.failedBooks.length) {
+                        this.applyFilter('failed', { fromFailures: true, preserveSelection: false });
+                    } else {
+                        this.applyFilter(this.lastQueueFilter || 'all', { preserveSelection: false });
+                    }
+                    if (scroll) {
+                        this.$nextTick(() => {
+                            this.$refs.failures?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        });
+                    }
+                },
+
+                openInQueue(book) {
+                    if (!book) return;
+                    this.panel = 'overview';
+                    this.showFailures = true;
+                    this.applyFilter('failed', { fromFailures: true, preserveSelection: false });
+                    const match = this.displayBooks.find((entry) => this.isSameBook(entry, book)) || this.findMatchingBook(book);
+                    this.selectBook(match);
+                    this.$nextTick(() => {
+                        this.$refs.queue?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
                 },
 
                 async requeueBook(bookKey) {
-                    if (this.requeueInProgress) {
-                        return; // Prevent multiple concurrent requeues
-                    }
-
+                    if (!bookKey || this.requeueInProgress) return;
                     this.requeueInProgress = bookKey;
 
                     try {
                         const response = await fetch(`/api/v1/queue/${encodeURIComponent(bookKey)}/requeue`, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                reset_retry_count: true
-                            })
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ reset_retry_count: true })
                         });
 
                         if (!response.ok) {
                             const error = await response.json();
                             alert(`Failed to re-queue: ${error.detail?.message || error.message || 'Unknown error'}`);
-                            this.requeueInProgress = null;
                             return;
                         }
 
                         const result = await response.json();
+                        alert(`✓ ${result.message}
 
-                        // Show success message
-                        alert(`✓ ${result.message}\n\nThe book will be processed in the next conversion loop.`);
-
-                        // Refresh data immediately
-                        await this.fetchData();
-
-                        this.requeueInProgress = null;
+The book will be processed in the next conversion loop.`);
+                        await this.refresh();
                     } catch (error) {
-                        console.error('Error re-queueing book:', error);
+                        console.error('Error re-queueing book', error);
                         alert('Failed to re-queue book. Check console for details.');
+                    } finally {
                         this.requeueInProgress = null;
                     }
                 },
 
                 formatDuration(seconds) {
-                    if (!seconds || seconds === 0) return '0s';
-
+                    if (!seconds || seconds <= 0) return '0s';
                     const hours = Math.floor(seconds / 3600);
                     const minutes = Math.floor((seconds % 3600) / 60);
-                    const secs = seconds % 60;
-
-                    if (hours > 0) {
-                        return `${hours}h ${minutes}m ${secs}s`;
-                    } else if (minutes > 0) {
-                        return `${minutes}m ${secs}s`;
-                    } else {
-                        return `${secs}s`;
-                    }
+                    const secs = Math.floor(seconds % 60);
+                    const pieces = [];
+                    if (hours) pieces.push(`${hours}h`);
+                    if (minutes) pieces.push(`${minutes}m`);
+                    if (secs || pieces.length === 0) pieces.push(`${secs}s`);
+                    return pieces.join(' ');
                 },
 
                 formatBytes(bytes) {
-                    if (!bytes || bytes === 0) return '0 B';
+                    if (!bytes || bytes <= 0) return '0 B';
+                    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                    return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+                },
 
-                    const k = 1024;
-                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-                    const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-                    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+                formatTimestamp(timestamp) {
+                    if (!timestamp) return 'Unknown';
+                    const date = new Date(timestamp * 1000);
+                    return date.toLocaleString();
                 }
-            }
+            };
         }
     </script>
+
 </body>
 </html>
